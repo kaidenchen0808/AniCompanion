@@ -55,6 +55,11 @@ final class HTTPChatService: ObservableObject, ChatTransport {
     /// In-flight streaming requests keyed by chat ref, so `.cancel` can stop one.
     private var activeTasks: [String: Task<Void, Never>] = [:]
     private var healthTask: Task<Void, Never>?
+    /// Polling task for backend-pushed notifications (see "Notification Polling" below).
+    private var notificationPollTask: Task<Void, Never>?
+    /// Flipped to false on a 404 from `/v1/notifications` — plain OpenAI-compatible gateways
+    /// (Ollama, LM Studio, …) don't offer a push channel, so we stop asking them.
+    private var notificationsSupported = true
 
     // MARK: - Initialization
 
@@ -95,11 +100,13 @@ final class HTTPChatService: ObservableObject, ChatTransport {
         healthTask = Task { [weak self] in
             await self?.checkHealth()
         }
+        startNotificationPolling()
     }
 
     func disconnect() {
         healthTask?.cancel()
         healthTask = nil
+        stopNotificationPolling()
         for (_, task) in activeTasks { task.cancel() }
         activeTasks.removeAll()
         connectionState = .disconnected
@@ -115,6 +122,72 @@ final class HTTPChatService: ObservableObject, ChatTransport {
         case .ack:
             // No server-push to acknowledge over HTTP. No-op.
             break
+        }
+    }
+
+    // MARK: - Notification Polling (backend push channel)
+    //
+    // The pipeline has a dormant `notify` path (`ConversationController.handleNotification`)
+    // reserved for server-pushed messages. Backends that implement `GET /v1/notifications`
+    // (e.g. companion-layer) can enqueue "she should say this now" messages; we poll for
+    // them and emit `.notify` → `.token` → `.done` so they ride the normal TTS + playback
+    // pipeline (skipped while the user is mid-chat, acked after playback). A 404 from a
+    // plain OpenAI-compatible gateway disables polling for the lifetime of this transport.
+
+    private static let notificationPollInterval: TimeInterval = 3
+
+    private struct NotificationMessage: Codable {
+        let id: String
+        let text: String
+    }
+
+    private struct NotificationsResponse: Codable {
+        let notifications: [NotificationMessage]
+    }
+
+    private func startNotificationPolling() {
+        guard notificationPollTask == nil, notificationsSupported else { return }
+        notificationPollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.pollNotifications()
+                try? await Task.sleep(for: .seconds(Self.notificationPollInterval))
+            }
+        }
+    }
+
+    private func stopNotificationPolling() {
+        notificationPollTask?.cancel()
+        notificationPollTask = nil
+    }
+
+    private func pollNotifications() async {
+        guard let url = URL(string: baseURL + "/v1/notifications") else { return }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 5
+        if !apiKey.isEmpty {
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard !Task.isCancelled else { return }
+            guard let http = response as? HTTPURLResponse else { return }
+            switch http.statusCode {
+            case 200:
+                let decoded = try JSONDecoder().decode(NotificationsResponse.self, from: data)
+                for message in decoded.notifications {
+                    let ref = "notif-\(message.id)"
+                    eventsContinuation.yield(.notify(ref: ref, source: "chat"))
+                    eventsContinuation.yield(.token(ref: ref, content: message.text, source: "chat"))
+                    eventsContinuation.yield(.done(ref: ref, source: "chat"))
+                }
+            case 404:
+                notificationsSupported = false
+                stopNotificationPolling()
+            default:
+                break // transient error — keep polling
+            }
+        } catch {
+            // Network failure — keep polling while the app runs.
         }
     }
 
