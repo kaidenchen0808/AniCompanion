@@ -36,7 +36,7 @@ macOS desktop AI character app with VRM 3D character rendering, LLM chat, TTS sp
 AniCompanion/
 ├── AniCompanion/
 │   ├── App/             # App entry (AniCompanionApp), AppDelegate (owns the NSWindow + pet mode), AppState, AppLanguage, Log
-│   ├── Views/           # SwiftUI views (Main, Chat, Settings) + DesktopPet (PetDragView)
+│   ├── Views/           # SwiftUI views (Main, Chat, Settings) + DesktopPet (PetDragView: click=touch her, drag=move, double-click=exit)
 │   ├── Services/        # ChatTransport + HTTPChatService (Hermes), TTS (TTSProvider: MiniMax + OpenAI + BlueMagpie), STT, ScreenVision, AudioPlayer, ObjCSupport
 │   ├── Character/       # ThreeVRMCharacterManager, ThreeVRMRenderView (WKWebView bridge to three-vrm)
 │   ├── Pipeline/        # Orchestration (ConversationController, SentenceParser, AudioQueue)
