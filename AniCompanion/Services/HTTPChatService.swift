@@ -107,6 +107,7 @@ final class HTTPChatService: ObservableObject, ChatTransport {
         healthTask?.cancel()
         healthTask = nil
         stopNotificationPolling()
+        stopRealtime()
         for (_, task) in activeTasks { task.cancel() }
         activeTasks.removeAll()
         connectionState = .disconnected
@@ -145,6 +146,16 @@ final class HTTPChatService: ObservableObject, ChatTransport {
         let notifications: [NotificationMessage]
     }
 
+    /// Notify-pipeline entry shared by the 3s poll and the realtime WebSocket: each
+    /// backend message rides `.notify` → `.token` → `.done` so it plays through the
+    /// normal TTS + lip-sync + bubble path (ConversationController.handleNotification).
+    private func emitNotification(id: String, text: String) {
+        let ref = "notif-\(id)"
+        eventsContinuation.yield(.notify(ref: ref, source: "chat"))
+        eventsContinuation.yield(.token(ref: ref, content: text, source: "chat"))
+        eventsContinuation.yield(.done(ref: ref, source: "chat"))
+    }
+
     private func startNotificationPolling() {
         guard notificationPollTask == nil, notificationsSupported else { return }
         notificationPollTask = Task { [weak self] in
@@ -175,11 +186,10 @@ final class HTTPChatService: ObservableObject, ChatTransport {
             case 200:
                 let decoded = try JSONDecoder().decode(NotificationsResponse.self, from: data)
                 for message in decoded.notifications {
-                    let ref = "notif-\(message.id)"
-                    eventsContinuation.yield(.notify(ref: ref, source: "chat"))
-                    eventsContinuation.yield(.token(ref: ref, content: message.text, source: "chat"))
-                    eventsContinuation.yield(.done(ref: ref, source: "chat"))
+                    emitNotification(id: message.id, text: message.text)
                 }
+                // companion-layer 广告实时能力 → 升级 WebSocket 长连（纯网关无此头，永不触发）
+                upgradeToRealtimeIfAdvertised(http)
             case 404:
                 notificationsSupported = false
                 stopNotificationPolling()
@@ -189,6 +199,128 @@ final class HTTPChatService: ObservableObject, ChatTransport {
         } catch {
             // Network failure — keep polling while the app runs.
         }
+    }
+
+    // MARK: - Realtime WebSocket (companion-layer push channel)
+    //
+    // When the poll response advertises `X-Companion-Realtime: 1`, we open a persistent
+    // WebSocket at `/v1/ws`: `{type:"say"}` frames arrive in <500ms instead of the 3s poll
+    // cadence and ride the same emitNotification path. If the socket drops we fall back to
+    // polling while retrying the socket with exponential backoff — she never goes quiet
+    // just because the upgrade channel hiccuped.
+
+    private var webSocketTask: URLSessionWebSocketTask?
+    private var realtimeReconnectTask: Task<Void, Never>?
+    private var realtimeSupported = false
+    private var realtimeFailCount = 0
+
+    /// Server commands (`{type:"command", action, payload}`) surface here. P4 wires this to
+    /// e.g. model hot-swap; while nil the frames are just logged.
+    var onServerCommand: ((String, [String: Any]?) -> Void)?
+
+    private func upgradeToRealtimeIfAdvertised(_ http: HTTPURLResponse) {
+        let advertised = (http.value(forHTTPHeaderField: "X-Companion-Realtime") ?? "") != ""
+        guard advertised, !realtimeSupported else { return }
+        realtimeSupported = true
+        connectRealtime()
+    }
+
+    private func realtimeURL() -> URL? {
+        var s = baseURL
+        if s.hasPrefix("https://") { s = "wss" + s.dropFirst("https".count) }
+        else if s.hasPrefix("http://") { s = "ws" + s.dropFirst("http".count) }
+        return URL(string: s + "/v1/ws")
+    }
+
+    private func connectRealtime() {
+        guard realtimeSupported, webSocketTask == nil, let url = realtimeURL() else { return }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 10
+        if !apiKey.isEmpty {
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
+        let task = session.webSocketTask(with: request)
+        webSocketTask = task
+        task.resume()
+        // URLSessionWebSocketTask has no open-event without a session delegate; a ping
+        // round-trip is the handshake probe — success stops the poll, failure backs off.
+        task.sendPing { [weak self] error in
+            Task { @MainActor in
+                guard let self, self.webSocketTask === task else { return }
+                if error == nil { self.onRealtimeConnected() } else { self.onRealtimeDisconnected() }
+            }
+        }
+    }
+
+    private func onRealtimeConnected() {
+        realtimeFailCount = 0
+        stopNotificationPolling() // WebSocket takes over the push channel
+        receiveRealtimeLoop()
+    }
+
+    private func onRealtimeDisconnected() {
+        webSocketTask?.cancel(with: .goingAway, reason: nil)
+        webSocketTask = nil
+        realtimeFailCount += 1
+        startNotificationPolling() // fall back while the socket is down
+        scheduleRealtimeReconnect()
+    }
+
+    private func scheduleRealtimeReconnect() {
+        guard realtimeReconnectTask == nil else { return }
+        // 2s → 4s → 8s → … capped at 30s; reset on successful connect
+        let delay = min(30.0, pow(2.0, Double(realtimeFailCount)))
+        realtimeReconnectTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled else { return }
+            await MainActor.run { self?.realtimeReconnectTask = nil }
+            await MainActor.run { self?.connectRealtime() }
+        }
+    }
+
+    private func receiveRealtimeLoop() {
+        guard let task = webSocketTask else { return }
+        task.receive { [weak self] result in
+            Task { @MainActor in
+                guard let self, self.webSocketTask === task else { return }
+                switch result {
+                case .success(let message):
+                    if case .string(let text) = message { self.handleRealtimeText(text) }
+                    self.receiveRealtimeLoop()
+                case .failure:
+                    self.onRealtimeDisconnected()
+                }
+            }
+        }
+    }
+
+    private func handleRealtimeText(_ text: String) {
+        guard let data = text.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let type = object["type"] as? String else { return }
+        switch type {
+        case "say":
+            let id = object["id"] as? String ?? UUID().uuidString
+            guard let content = object["text"] as? String, !content.isEmpty else { return }
+            emitNotification(id: id, text: content)
+        case "command":
+            let action = object["action"] as? String ?? ""
+            let payload = object["payload"] as? [String: Any]
+            if let onServerCommand {
+                onServerCommand(action, payload)
+            } else {
+                Log.pipeline("[realtime] command \(action) received (no handler wired)")
+            }
+        default:
+            break // unknown / ack — nothing to do at this protocol version
+        }
+    }
+
+    private func stopRealtime() {
+        realtimeReconnectTask?.cancel()
+        realtimeReconnectTask = nil
+        webSocketTask?.cancel(with: .goingAway, reason: nil)
+        webSocketTask = nil
     }
 
     // MARK: - Health

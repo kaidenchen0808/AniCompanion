@@ -80,8 +80,16 @@ User input (text or voice) → HTTP chat (Hermes) → SentenceParser → paralle
 
 - **ChatTransport** (protocol) + **HTTPChatService** (@MainActor): `POST /v1/chat/completions`
   with `stream:true`; parses OpenAI-standard SSE (`data: {json}` lines, `data: [DONE]` terminator)
-  into an `AsyncStream<WSIncoming>` of token/done/error events. `connect()` = `GET /health` (no
-  persistent socket, heartbeat, or reconnect). Cancel → URLSession task cancel.
+  into an `AsyncStream<WSIncoming>` of token/done/error events. `connect()` = `GET /health`. Chat
+  itself is request/response SSE — no persistent socket. Cancel → URLSession task cancel.
+- **Backend push channel** (fork patch, in HTTPChatService): a 3s poll of `GET
+  /v1/notifications` (404 on plain gateways permanently disables it) carries her proactive
+  lines; when the poll response advertises `X-Companion-Realtime: 1` (companion-layer does), the
+  service upgrades to a persistent WebSocket at `/v1/ws` (Bearer auth, ping as handshake probe).
+  `{type:"say"}` frames ride the same `emitNotification` path as polled messages → the normal
+  notify pipeline (TTS + lip sync + bubble). On socket drop it falls back to polling and retries
+  the socket with exponential backoff (2s→30s). `{type:"command"}` frames surface on
+  `onServerCommand` (unwired — reserved for P4).
 - **ChatBackend** (enum registry): "bring your own agent" seam. Each `case` registers a backend
   (`displayName`/`defaultEndpoint`/`defaultModel`/`configHint` + a `makeTransport(_:)` arm returning
   an `any ChatTransport`). `AppState` builds `ChatBackend.current.makeTransport(BackendConfig(...))`;
@@ -96,8 +104,9 @@ User input (text or voice) → HTTP chat (Hermes) → SentenceParser → paralle
 - **AudioQueue** (actor): FIFO queue ensuring ordered playback even when TTS responses arrive out of order
 - **ConversationController** (@MainActor): Orchestrates the full pipeline; consumes transport events
   via a long-lived listener; bridge-stream pattern (tokens → AsyncThrowingStream continuation);
-  60-min proactive idle timer. (A dormant `notify`/`runNotificationPipeline`/`ack` path remains for a
-  future cron-push integration; nothing emits `notify` today.)
+  60-min proactive idle timer. The `notify`/`runNotificationPipeline` path plays backend-pushed
+  messages (poll or realtime WebSocket, via `emitNotification`) through the normal TTS pipeline;
+  user-chat barge-in cancels a playing notification.
 - **TTSProvider** (enum registry): the voice analogue of `ChatBackend`. `apple` (on-device
   `AVSpeechSynthesizer`, no key/network, WAV) + `miniMax` (cloud Speech-02-Turbo, hex-encoded MP3
   over SSE) + `openAI` (cloud `POST /v1/audio/speech`, WAV output) + `blueMagpie` (local `POST
