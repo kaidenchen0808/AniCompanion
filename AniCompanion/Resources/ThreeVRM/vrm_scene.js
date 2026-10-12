@@ -663,6 +663,41 @@ window.getCameraState = function() {
 };
 
 // ============================================================
+// Touch Interaction (companion-layer POST /api/touch)
+// ============================================================
+
+const touchRaycaster = new THREE.Raycaster();
+const touchNDC = new THREE.Vector2();
+// head 骨骼在脖子顶端；其下方 5cm 内（脖子/下巴交界）仍算摸头
+const HEAD_PART_TOLERANCE = 0.05;
+
+// CSS 像素坐标 → 命中部位：''=未命中（背景），'head'=摸头，'body'=戳身体。
+// 头发/裙摆等 spring bones 随网格命中，按命中点高度归属部位——摸头发自然算摸头。
+function hitPart(px, py) {
+    if (!vrm) return '';
+    touchNDC.x = (px / window.innerWidth) * 2 - 1;
+    touchNDC.y = -(py / window.innerHeight) * 2 + 1;
+    touchRaycaster.setFromCamera(touchNDC, camera);
+    const hits = touchRaycaster.intersectObject(vrm.scene, true);
+    if (hits.length === 0) return '';
+    const headNode = vrm.humanoid && vrm.humanoid.getNormalizedBoneNode('head');
+    if (!headNode) return 'body';
+    const headY = headNode.getWorldPosition(new THREE.Vector3()).y;
+    return hits[0].point.y >= headY - HEAD_PART_TOLERANCE ? 'head' : 'body';
+}
+
+// 统一入口：两种模式都汇到这里——主窗口走下方 canvas click，
+// 桌宠模式点击被 drag overlay 拦截、由 Swift（PetDragView.onTap）转发调用。
+window.handleTap = function(px, py) {
+    const part = hitPart(px, py);
+    if (part) postBridge('touch', { part: part });
+};
+
+canvas.addEventListener('click', (ev) => {
+    window.handleTap(ev.clientX, ev.clientY);
+});
+
+// ============================================================
 // Render Loop
 // ============================================================
 

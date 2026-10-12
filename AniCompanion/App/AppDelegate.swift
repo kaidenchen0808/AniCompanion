@@ -141,8 +141,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let drag = PetDragView(frame: bounds)
         drag.onExit = { [weak self] in self?.appState.petMode = false }
         drag.onScale = { [weak self] factor in self?.scalePet(by: factor) }
+        drag.onTap = { [weak self] point in
+            guard let self, let webView = self.appState.characterManager.webView else { return }
+            // AppKit window coords (bottom-left origin) → WebView CSS coords (top-left origin)
+            let jsX = point.x
+            let jsY = webView.bounds.height - point.y
+            webView.evaluateJavaScript("window.handleTap && window.handleTap(\(jsX), \(jsY))", completionHandler: nil)
+        }
         drag.autoresizingMask = [.width, .height]
-        container.addSubview(drag)                        // on top: drag moves, double-click exits, scroll/pinch resizes
+        container.addSubview(drag)                        // on top: click = touch her, drag = move window, double-click exits, scroll/pinch resizes
 
         window.contentView = container
         window.makeKeyAndOrderFront(nil)                  // must re-key after the mask change

@@ -38,6 +38,10 @@ final class ThreeVRMCharacterManager: NSObject, ObservableObject, CharacterContr
     /// so `setSpeechText` only renders the bubble when she's living on the desktop.
     var petModeActive: Bool = false
 
+    /// The user touched her 3D body (JS `postBridge('touch')`): part is "head" (pat) or
+    /// "body" (poke). Wired by `AppState` to the transport's touch reporting.
+    var onTouch: ((String) -> Void)?
+
     // MARK: - Animation Data
 
     /// Raw JSON data for each animation clip, keyed by name.
@@ -280,6 +284,11 @@ extension ThreeVRMCharacterManager: WKScriptMessageHandler {
             currentClipName = nil
             resetInactivityTimer()
             Log.character("[ThreeVRM] Animation ended: '\(name)'")
+
+        case "touch":
+            let part = body["part"] as? String ?? "body"
+            Log.character("[ThreeVRM] Touched: \(part)")
+            onTouch?(part)
 
         default:
             Log.character("[ThreeVRM] Unknown bridge event: \(event)")

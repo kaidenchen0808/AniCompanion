@@ -323,6 +323,25 @@ final class HTTPChatService: ObservableObject, ChatTransport {
         webSocketTask = nil
     }
 
+    // MARK: - Touch Reporting (companion-layer /api/touch)
+
+    /// Report a touch interaction (part = "head" | "body"): the companion layer replies with a
+    /// persona line pushed back over the poll/WebSocket channel. Fire-and-forget — a failed
+    /// report (or a plain gateway without the endpoint) must never disturb the app. Gated on
+    /// `notificationsSupported` so we only talk to backends that are actually companion-layer.
+    func reportTouch(_ part: String) {
+        guard notificationsSupported, let url = URL(string: baseURL + "/api/touch") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 5
+        if !apiKey.isEmpty {
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["part": part])
+        session.dataTask(with: request) { _, _, _ in }.resume()
+    }
+
     // MARK: - Health
 
     private func checkHealth() async {

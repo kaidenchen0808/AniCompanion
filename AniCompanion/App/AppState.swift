@@ -227,6 +227,12 @@ final class AppState: ObservableObject {
         let ws: any ChatTransport = backend.makeTransport(config)
         self.chatTransport = ws
 
+        // Touch interaction: JS `postBridge('touch')` → report to companion-layer
+        // (only HTTP transports know the endpoint; plain gateways are filtered inside).
+        if let http = ws as? HTTPChatService {
+            characterManager.onTouch = { [weak http] part in http?.reportTouch(part) }
+        }
+
         // Observe connection state.
         connectionCancellable = ws.connectionStatePublisher
             .receive(on: RunLoop.main)
