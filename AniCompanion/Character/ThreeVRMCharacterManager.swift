@@ -77,9 +77,20 @@ final class ThreeVRMCharacterManager: NSObject, ObservableObject, CharacterContr
         guard isModelLoaded else { return }
         // Only auto-play idle if nothing is currently playing
         guard currentClipName == nil else { return }
-        Log.character("[ThreeVRM] Inactivity timeout — playing idle animation")
-        playAnimation(named: "idle")
+        // AnimationDirector may offer an idle variant (stretch, arms crossed, …);
+        // nil (all on cooldown / missing clips) falls back to the plain idle.
+        let variant = idleVariantProvider?()
+        Log.character("[ThreeVRM] Inactivity timeout — playing \(variant ?? "idle")")
+        playAnimation(named: variant ?? "idle")
     }
+
+    /// Names of the animation clips loaded from Resources/Animations/ (for the
+    /// AnimationDirector's existence checks and silent degradation).
+    var availableAnimations: Set<String> { Set(animationClipData.keys) }
+
+    /// Supplies an idle-variant clip name on inactivity timeouts (AnimationDirector;
+    /// nil = play the plain `idle`). Set by `AppState`.
+    var idleVariantProvider: (() -> String?)?
 
     // MARK: - Lip Sync
 
@@ -275,6 +286,7 @@ extension ThreeVRMCharacterManager: WKScriptMessageHandler {
                 isModelLoaded = true
                 resetInactivityTimer()
                 Log.character("[ThreeVRM] Model loaded successfully (via bridge)")
+                playAnimation(named: "wave")   // she greets on arrival (clip may be absent — silent)
             } else {
                 Log.character("[ThreeVRM] Model load failed (via bridge)")
             }

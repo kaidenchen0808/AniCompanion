@@ -71,6 +71,10 @@ final class ConversationController: ObservableObject {
     /// about what's playing. Nil / empty result = nothing injected. Set by `AppState`.
     var transcriptContextProvider: (@MainActor () -> String?)?
 
+    /// Body-animation orchestration (talk gestures, per-emotion clips). Optional so the
+    /// pipeline works without it (falls back to a plain `talk_gesture`). Set by `AppState`.
+    var animationDirector: AnimationDirector?
+
     // MARK: - Dependencies
 
     private let chatTransport: any ChatTransport
@@ -902,7 +906,11 @@ final class ConversationController: ObservableObject {
                 charController?.setExpression(lastEmotion, blendDuration: 0.3)
             }
 
-            charController?.playAnimation(named: "talk_gesture")
+            if let animationDirector {
+                animationDirector.playTalkGesture()
+            } else {
+                charController?.playAnimation(named: "talk_gesture")
+            }
 
             // Lazy VPIO: she's about to speak — bring the full-duplex engine up (awaited, so her
             // first segment plays through it and barge-in is armed). Torn down after the turn.
@@ -910,17 +918,19 @@ final class ConversationController: ObservableObject {
 
             Log.pipeline("[Pipeline] Starting TTS for \(sentences.count) sentences")
             let capturedSentences = sentences
+            let animationDirector = animationDirector
             try await withThrowingTaskGroup(of: Void.self) { group in
                 let ttsService = self.ttsService
 
                 // TTS producer.
-                group.addTask { @Sendable [ttsService, charController, capturedSentences] in
+                group.addTask { @Sendable [ttsService, charController, capturedSentences, animationDirector] in
                     for (index, sentence) in capturedSentences.enumerated() {
                         try Task.checkCancellation()
 
                         let emotion = sentence.emotion
                         await MainActor.run {
                             charController?.setExpression(emotion, blendDuration: 0.3)
+                            animationDirector?.playEmotion(emotion)
                         }
 
                         Log.pipeline("[Pipeline] TTS[\(index)] synthesizing \(sentence.text.count) chars")

@@ -140,6 +140,9 @@ final class HTTPChatService: ObservableObject, ChatTransport {
     private struct NotificationMessage: Codable {
         let id: String
         let text: String
+        /// Optional body-animation clip the companion layer plays alongside the line
+        /// (missing clips are dropped client-side, see AnimationDirector).
+        let animation: String?
     }
 
     private struct NotificationsResponse: Codable {
@@ -149,12 +152,20 @@ final class HTTPChatService: ObservableObject, ChatTransport {
     /// Notify-pipeline entry shared by the 3s poll and the realtime WebSocket: each
     /// backend message rides `.notify` → `.token` → `.done` so it plays through the
     /// normal TTS + lip-sync + bubble path (ConversationController.handleNotification).
-    private func emitNotification(id: String, text: String) {
+    /// A body-animation clip riding along fires `onSayAnimation` first — she moves, then speaks.
+    private func emitNotification(id: String, text: String, animation: String? = nil) {
+        if let animation, !animation.isEmpty {
+            onSayAnimation?(animation)
+        }
         let ref = "notif-\(id)"
         eventsContinuation.yield(.notify(ref: ref, source: "chat"))
         eventsContinuation.yield(.token(ref: ref, content: text, source: "chat"))
         eventsContinuation.yield(.done(ref: ref, source: "chat"))
     }
+
+    /// Fires the animation clip attached to a backend-pushed say line (companion-layer
+    /// touch/reaction reactions). Wired by `AppState` to the AnimationDirector.
+    var onSayAnimation: ((String) -> Void)?
 
     private func startNotificationPolling() {
         guard notificationPollTask == nil, notificationsSupported else { return }
@@ -186,7 +197,7 @@ final class HTTPChatService: ObservableObject, ChatTransport {
             case 200:
                 let decoded = try JSONDecoder().decode(NotificationsResponse.self, from: data)
                 for message in decoded.notifications {
-                    emitNotification(id: message.id, text: message.text)
+                    emitNotification(id: message.id, text: message.text, animation: message.animation)
                 }
                 // companion-layer 广告实时能力 → 升级 WebSocket 长连（纯网关无此头，永不触发）
                 upgradeToRealtimeIfAdvertised(http)
@@ -302,7 +313,7 @@ final class HTTPChatService: ObservableObject, ChatTransport {
         case "say":
             let id = object["id"] as? String ?? UUID().uuidString
             guard let content = object["text"] as? String, !content.isEmpty else { return }
-            emitNotification(id: id, text: content)
+            emitNotification(id: id, text: content, animation: object["animation"] as? String)
         case "command":
             let action = object["action"] as? String ?? ""
             let payload = object["payload"] as? [String: Any]

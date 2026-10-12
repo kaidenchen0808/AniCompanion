@@ -227,10 +227,19 @@ final class AppState: ObservableObject {
         let ws: any ChatTransport = backend.makeTransport(config)
         self.chatTransport = ws
 
+        // Body-animation orchestration: the director knows which clips exist and
+        // rate-limits per clip; the character manager plays them in the WKWebView.
+        let animationDirector = AnimationDirector(
+            player: { [weak characterManager] name in characterManager?.playAnimation(named: name) },
+            availableClips: { [weak characterManager] in characterManager?.availableAnimations ?? [] }
+        )
+        characterManager.idleVariantProvider = { [weak animationDirector] in animationDirector?.nextIdleVariant() }
+
         // Touch interaction: JS `postBridge('touch')` → report to companion-layer
         // (only HTTP transports know the endpoint; plain gateways are filtered inside).
         if let http = ws as? HTTPChatService {
             characterManager.onTouch = { [weak http] part in http?.reportTouch(part) }
+            http.onSayAnimation = { [weak animationDirector] name in animationDirector?.playServer(name) }
         }
 
         // Observe connection state.
@@ -254,6 +263,7 @@ final class AppState: ObservableObject {
             characterController: characterManager
         )
         controller.ttsEnabled = ttsEnabled
+        controller.animationDirector = animationDirector
         controller.screenVisionEnabled = screenVisionEnabled
         controller.visionProactiveIntervalSeconds = Double(visionProactiveIntervalMinutes * 60)
         conversationController = controller
