@@ -100,6 +100,12 @@ User input (text or voice) → HTTP chat (Hermes) → SentenceParser → paralle
   migration (`migrateLegacyConnectionDefaults`) folds the older single-connection keys
   (`chat_endpoint`/`chat_api_key`, and before that `hermes_*`) into Hermes' per-backend keys.
   See `CONTRIBUTING.md` → "Adding an agent backend".
+- **AnimationDirector** (@MainActor, Pipeline/): orchestrates *when she moves* — per-emotion
+  clip mapping, talk-gesture pool, idle variants, per-clip 20s cooldown. Missing clips
+  degrade silently, so the 26-clip set (`docs/animations.md`, Mixamo-derived via
+  `Tools/export_animation.py`) ships incrementally; the director wires into
+  `ThreeVRMCharacterManager.playAnimation` and the companion layer's say-line `animation`
+  field (`HTTPChatService.onSayAnimation` → she moves, then speaks).
 - **SentenceParser** (actor): Buffers LLM chunks, detects Chinese sentence boundaries, extracts emotion tags
 - **AudioQueue** (actor): FIFO queue ensuring ordered playback even when TTS responses arrive out of order
 - **ConversationController** (@MainActor): Orchestrates the full pipeline; consumes transport events
