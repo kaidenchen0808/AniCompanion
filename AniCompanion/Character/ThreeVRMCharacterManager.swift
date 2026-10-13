@@ -319,24 +319,32 @@ extension Emotion {
     /// The default model (Alicia Solid) only ships these four emotion presets — it has
     /// no `surprised` expression — so the 16 emotions are bucketed onto them. Swap in a
     /// model with richer expressions and you can give each emotion a distinct preset.
+    /// Emotion → weighted blend of the VRM standard presets. VRM 0.x models (Alicia)
+    /// only expose happy/angry/sad/relaxed, so the 16 emotions are differentiated by
+    /// *mixing* them at different weights instead of collapsing onto four faces.
+    /// ('aa'/blink are unusable here: lip-sync rewrites 'aa' every frame and the idle
+    /// blink timer zeroes 'blink' after each blink.)
     var threeVRMExpressionMappings: [[String: Any]] {
+        func m(_ pairs: (String, Double)...) -> [[String: Any]] {
+            pairs.map { ["name": $0.0, "value": $0.1] }
+        }
         switch self {
-        case .neutral:    return []
-        case .happy:      return [["name": "happy", "value": 1.0]]
-        case .sad:        return [["name": "sad", "value": 1.0]]
-        case .angry:      return [["name": "angry", "value": 1.0]]
-        case .surprised:  return [["name": "happy", "value": 1.0]]
-        case .curious:    return [["name": "relaxed", "value": 1.0]]
-        case .excited:    return [["name": "happy", "value": 1.0]]
-        case .shy:        return [["name": "relaxed", "value": 1.0]]
-        case .love:       return [["name": "happy", "value": 1.0]]
-        case .smirk:      return [["name": "relaxed", "value": 1.0]]
-        case .sleepy:     return [["name": "relaxed", "value": 1.0]]
-        case .proud:      return [["name": "happy", "value": 1.0]]
-        case .disgusted:  return [["name": "angry", "value": 1.0]]
-        case .pain:       return [["name": "sad", "value": 1.0]]
-        case .laugh:      return [["name": "happy", "value": 1.0]]
-        case .bored:      return [["name": "relaxed", "value": 1.0]]
+        case .neutral:    return []                                            // no expression
+        case .happy:      return m(("happy", 1.0))                             // baseline smile
+        case .sad:        return m(("sad", 1.0))                               // baseline sorrow
+        case .angry:      return m(("angry", 1.0))                             // baseline anger
+        case .surprised:  return m(("happy", 1.0), ("sad", 0.5))               // brows-up startle (日系惊讶脸)
+        case .curious:    return m(("relaxed", 1.0), ("happy", 0.4))           // interested, light smile
+        case .excited:    return m(("happy", 1.0), ("relaxed", 0.45))          // beaming
+        case .shy:        return m(("relaxed", 0.9), ("angry", 0.4))           // flustered blush
+        case .love:       return m(("happy", 0.9), ("relaxed", 0.5))           // sweet adoration
+        case .smirk:      return m(("relaxed", 0.9), ("happy", 0.45))          // mischievous half-smile
+        case .sleepy:     return m(("relaxed", 0.85), ("sad", 0.45))           // drooping eyelids
+        case .proud:      return m(("happy", 0.95), ("angry", 0.35))           // smug chin-up
+        case .disgusted:  return m(("angry", 0.75), ("sad", 0.5))              // wrinkled distaste
+        case .pain:       return m(("sad", 0.95), ("angry", 0.4))              // wince
+        case .laugh:      return m(("happy", 1.0), ("relaxed", 0.45))          // full laughter
+        case .bored:      return m(("relaxed", 0.85), ("sad", 0.45))           // listless slump
         }
     }
 }
