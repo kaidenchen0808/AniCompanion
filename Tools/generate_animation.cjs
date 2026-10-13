@@ -190,6 +190,223 @@ const clips = [
     { t: 4.0, bones: {} },
   ]),
 
+  // 害羞捂脸：双手举到脸颊侧，头微低偏转（摸头反应首选动画）
+  clip('shy_cover', 3.0, false, [
+    { t: 0.0, bones: {} },
+    { t: 0.45, bones: {
+      leftUpperArm: arm('leftUpperArm', { x: -55, z: -18, y: -20 }), rightUpperArm: arm('rightUpperArm', { x: -55, z: 18, y: 20 }),
+      leftLowerArm: arm('leftLowerArm', { x: 105, y: 25 }), rightLowerArm: arm('rightLowerArm', { x: 105, y: -25 }),
+      head: rx(12),
+    } },
+    { t: 2.2, bones: {
+      leftUpperArm: arm('leftUpperArm', { x: -55, z: -18, y: -20 }), rightUpperArm: arm('rightUpperArm', { x: -55, z: 18, y: 20 }),
+      leftLowerArm: arm('leftLowerArm', { x: 105, y: 25 }), rightLowerArm: arm('rightLowerArm', { x: 105, y: -25 }),
+      head: rx(12),
+    } },
+    { t: 3.0, bones: {} },
+  ]),
+
+  // 伸懒腰（闲时变体）：双臂上举过头 + 上身后仰伸展
+  clip('idle_stretch', 3.6, false, [
+    { t: 0.0, bones: {} },
+    { t: 1.3, bones: {
+      leftUpperArm: arm('leftUpperArm', { z: 100, x: -30 }), rightUpperArm: arm('rightUpperArm', { z: -100, x: -30 }),
+      leftLowerArm: arm('leftLowerArm', { x: -15 }), rightLowerArm: arm('rightLowerArm', { x: -15 }),
+      upperChest: rx(-6), head: rx(-8),
+    } },
+    { t: 2.5, bones: {
+      leftUpperArm: arm('leftUpperArm', { z: 100, x: -30 }), rightUpperArm: arm('rightUpperArm', { z: -100, x: -30 }),
+      leftLowerArm: arm('leftLowerArm', { x: -15 }), rightLowerArm: arm('rightLowerArm', { x: -15 }),
+      upperChest: rx(-6), head: rx(-8),
+    } },
+    { t: 3.6, bones: {} },
+  ]),
+
+  // 惊讶后缩：上身后仰 + 双臂张开 + 头后仰，快速到位保持回落
+  clip('surprised_step_back', 1.8, false, [
+    { t: 0.0, bones: {} },
+    { t: 0.3, bones: {
+      upperChest: rx(-10), head: rx(-8),
+      leftUpperArm: arm('leftUpperArm', { z: -22, x: -30 }), rightUpperArm: arm('rightUpperArm', { z: 22, x: -30 }),
+      leftLowerArm: arm('leftLowerArm', { x: 25 }), rightLowerArm: arm('rightLowerArm', { x: 25 }),
+    } },
+    { t: 1.1, bones: {
+      upperChest: rx(-10), head: rx(-8),
+      leftUpperArm: arm('leftUpperArm', { z: -22, x: -30 }), rightUpperArm: arm('rightUpperArm', { z: 22, x: -30 }),
+      leftLowerArm: arm('leftLowerArm', { x: 25 }), rightLowerArm: arm('rightLowerArm', { x: 25 }),
+    } },
+    { t: 1.8, bones: {} },
+  ]),
+
+  // 挥拳庆祝：右臂高举过头 + 左臂收腰 + 头上扬
+  clip('celebrate', 2.2, false, [
+    { t: 0.0, bones: {} },
+    { t: 0.35, bones: {
+      rightUpperArm: arm('rightUpperArm', { z: -135, x: -15 }), rightLowerArm: arm('rightLowerArm', { x: 95 }),
+      leftUpperArm: arm('leftUpperArm', { x: 10, y: 25, z: -10 }), leftLowerArm: arm('leftLowerArm', { x: 60 }),
+      head: rx(-6),
+    } },
+    { t: 0.55, bones: {
+      rightUpperArm: arm('rightUpperArm', { z: -120, x: -15 }), rightLowerArm: arm('rightLowerArm', { x: 80 }),
+      leftUpperArm: arm('leftUpperArm', { x: 10, y: 25, z: -10 }), leftLowerArm: arm('leftLowerArm', { x: 60 }),
+      head: rx(-6),
+    } },
+    { t: 0.8, bones: {
+      rightUpperArm: arm('rightUpperArm', { z: -135, x: -15 }), rightLowerArm: arm('rightLowerArm', { x: 95 }),
+      leftUpperArm: arm('leftUpperArm', { x: 10, y: 25, z: -10 }), leftLowerArm: arm('leftLowerArm', { x: 60 }),
+      head: rx(-6),
+    } },
+    { t: 1.0, bones: {
+      rightUpperArm: arm('rightUpperArm', { z: -120, x: -15 }), rightLowerArm: arm('rightLowerArm', { x: 80 }),
+      leftUpperArm: arm('leftUpperArm', { x: 10, y: 25, z: -10 }), leftLowerArm: arm('leftLowerArm', { x: 60 }),
+      head: rx(-6),
+    } },
+    { t: 1.3, bones: {
+      rightUpperArm: arm('rightUpperArm', { z: -135, x: -15 }), rightLowerArm: arm('rightLowerArm', { x: 95 }),
+      leftUpperArm: arm('leftUpperArm', { x: 10, y: 25, z: -10 }), leftLowerArm: arm('leftLowerArm', { x: 60 }),
+      head: rx(-6),
+    } },
+    { t: 2.2, bones: {} },
+  ]),
+
+  // 加油鼓劲：双臂弯举胸前小幅快振
+  clip('cheer', 2.0, false, [
+    { t: 0.0, bones: {} },
+    { t: 0.3, bones: {
+      leftUpperArm: arm('leftUpperArm', { x: -35, z: -18 }), rightUpperArm: arm('rightUpperArm', { x: -35, z: 18 }),
+      leftLowerArm: arm('leftLowerArm', { x: 100 }), rightLowerArm: arm('rightLowerArm', { x: 100 }),
+    } },
+    { t: 0.55, bones: {
+      leftUpperArm: arm('leftUpperArm', { x: -45, z: -18 }), rightUpperArm: arm('rightUpperArm', { x: -45, z: 18 }),
+      leftLowerArm: arm('leftLowerArm', { x: 85 }), rightLowerArm: arm('rightLowerArm', { x: 85 }),
+    } },
+    { t: 0.8, bones: {
+      leftUpperArm: arm('leftUpperArm', { x: -35, z: -18 }), rightUpperArm: arm('rightUpperArm', { x: -35, z: 18 }),
+      leftLowerArm: arm('leftLowerArm', { x: 100 }), rightLowerArm: arm('rightLowerArm', { x: 100 }),
+    } },
+    { t: 1.05, bones: {
+      leftUpperArm: arm('leftUpperArm', { x: -45, z: -18 }), rightUpperArm: arm('rightUpperArm', { x: -45, z: 18 }),
+      leftLowerArm: arm('leftLowerArm', { x: 85 }), rightLowerArm: arm('rightLowerArm', { x: 85 }),
+    } },
+    { t: 1.3, bones: {
+      leftUpperArm: arm('leftUpperArm', { x: -35, z: -18 }), rightUpperArm: arm('rightUpperArm', { x: -35, z: 18 }),
+      leftLowerArm: arm('leftLowerArm', { x: 100 }), rightLowerArm: arm('rightLowerArm', { x: 100 }),
+    } },
+    { t: 2.0, bones: {} },
+  ]),
+
+  // 大幅说话手势：双臂交替前摆（强情绪说话）
+  clip('talk_expressive', 2.8, true, [
+    { t: 0.0, bones: {
+      leftUpperArm: arm('leftUpperArm', { x: -45, y: -15 }), leftLowerArm: arm('leftLowerArm', { x: 55 }),
+      rightUpperArm: arm('rightUpperArm', { x: -12 }), rightLowerArm: arm('rightLowerArm', { x: 40 }),
+    } },
+    { t: 0.7, bones: {
+      leftUpperArm: arm('leftUpperArm', { x: -12 }), leftLowerArm: arm('leftLowerArm', { x: 40 }),
+      rightUpperArm: arm('rightUpperArm', { x: -45, y: 15 }), rightLowerArm: arm('rightLowerArm', { x: 55 }),
+    } },
+    { t: 1.4, bones: {
+      leftUpperArm: arm('leftUpperArm', { x: -45, y: -15 }), leftLowerArm: arm('leftLowerArm', { x: 55 }),
+      rightUpperArm: arm('rightUpperArm', { x: -12 }), rightLowerArm: arm('rightLowerArm', { x: 40 }),
+    } },
+    { t: 2.1, bones: {
+      leftUpperArm: arm('leftUpperArm', { x: -12 }), leftLowerArm: arm('leftLowerArm', { x: 40 }),
+      rightUpperArm: arm('rightUpperArm', { x: -45, y: 15 }), rightLowerArm: arm('rightLowerArm', { x: 55 }),
+    } },
+    { t: 2.8, bones: {
+      leftUpperArm: arm('leftUpperArm', { x: -45, y: -15 }), leftLowerArm: arm('leftLowerArm', { x: 55 }),
+      rightUpperArm: arm('rightUpperArm', { x: -12 }), rightLowerArm: arm('rightLowerArm', { x: 40 }),
+    } },
+  ]),
+
+  // 招手过来：右臂前举 + 前臂往回摆
+  clip('come_here', 1.8, false, [
+    { t: 0.0, bones: {} },
+    { t: 0.4, bones: {
+      rightUpperArm: arm('rightUpperArm', { x: -75, z: 10 }), rightLowerArm: arm('rightLowerArm', { x: 45, y: 20 }),
+    } },
+    { t: 0.7, bones: {
+      rightUpperArm: arm('rightUpperArm', { x: -75, z: 10 }), rightLowerArm: arm('rightLowerArm', { x: 30, y: -15 }),
+    } },
+    { t: 1.0, bones: {
+      rightUpperArm: arm('rightUpperArm', { x: -75, z: 10 }), rightLowerArm: arm('rightLowerArm', { x: 45, y: 20 }),
+    } },
+    { t: 1.3, bones: {
+      rightUpperArm: arm('rightUpperArm', { x: -75, z: 10 }), rightLowerArm: arm('rightLowerArm', { x: 30, y: -15 }),
+    } },
+    { t: 1.8, bones: {} },
+  ]),
+
+  // 拍手：双臂前举 + 前臂交替靠拢分开
+  clip('happy_clap', 2.0, false, [
+    { t: 0.0, bones: {} },
+    { t: 0.3, bones: {
+      leftUpperArm: arm('leftUpperArm', { x: -50, z: -12 }), rightUpperArm: arm('rightUpperArm', { x: -50, z: 12 }),
+      leftLowerArm: arm('leftLowerArm', { x: 65, y: 15 }), rightLowerArm: arm('rightLowerArm', { x: 65, y: -15 }),
+    } },
+    { t: 0.55, bones: {
+      leftUpperArm: arm('leftUpperArm', { x: -50, z: -12 }), rightUpperArm: arm('rightUpperArm', { x: -50, z: 12 }),
+      leftLowerArm: arm('leftLowerArm', { x: 65, y: 30 }), rightLowerArm: arm('rightLowerArm', { x: 65, y: -30 }),
+    } },
+    { t: 0.8, bones: {
+      leftUpperArm: arm('leftUpperArm', { x: -50, z: -12 }), rightUpperArm: arm('rightUpperArm', { x: -50, z: 12 }),
+      leftLowerArm: arm('leftLowerArm', { x: 65, y: 15 }), rightLowerArm: arm('rightLowerArm', { x: 65, y: -15 }),
+    } },
+    { t: 1.05, bones: {
+      leftUpperArm: arm('leftUpperArm', { x: -50, z: -12 }), rightUpperArm: arm('rightUpperArm', { x: -50, z: 12 }),
+      leftLowerArm: arm('leftLowerArm', { x: 65, y: 30 }), rightLowerArm: arm('rightLowerArm', { x: 65, y: -30 }),
+    } },
+    { t: 1.3, bones: {
+      leftUpperArm: arm('leftUpperArm', { x: -50, z: -12 }), rightUpperArm: arm('rightUpperArm', { x: -50, z: 12 }),
+      leftLowerArm: arm('leftLowerArm', { x: 65, y: 15 }), rightLowerArm: arm('rightLowerArm', { x: 65, y: -15 }),
+    } },
+    { t: 2.0, bones: {} },
+  ]),
+
+  // 生气跺脚（近似：双拳收腰 + 上身前倾小晃，替代腿部动作）
+  clip('angry_stomp', 1.6, false, [
+    { t: 0.0, bones: {} },
+    { t: 0.3, bones: {
+      leftUpperArm: arm('leftUpperArm', { x: 15, y: 25, z: -12 }), rightUpperArm: arm('rightUpperArm', { x: 15, y: -25, z: 12 }),
+      leftLowerArm: arm('leftLowerArm', { x: 85 }), rightLowerArm: arm('rightLowerArm', { x: 85 }),
+      upperChest: rx(8), head: rx(8),
+    } },
+    { t: 0.55, bones: {
+      leftUpperArm: arm('leftUpperArm', { x: 15, y: 25, z: -12 }), rightUpperArm: arm('rightUpperArm', { x: 15, y: -25, z: 12 }),
+      leftLowerArm: arm('leftLowerArm', { x: 85 }), rightLowerArm: arm('rightLowerArm', { x: 85 }),
+      upperChest: rx(12), head: rx(10),
+    } },
+    { t: 0.8, bones: {
+      leftUpperArm: arm('leftUpperArm', { x: 15, y: 25, z: -12 }), rightUpperArm: arm('rightUpperArm', { x: 15, y: -25, z: 12 }),
+      leftLowerArm: arm('leftLowerArm', { x: 85 }), rightLowerArm: arm('rightLowerArm', { x: 85 }),
+      upperChest: rx(8), head: rx(8),
+    } },
+    { t: 1.05, bones: {
+      leftUpperArm: arm('leftUpperArm', { x: 15, y: 25, z: -12 }), rightUpperArm: arm('rightUpperArm', { x: 15, y: -25, z: 12 }),
+      leftLowerArm: arm('leftLowerArm', { x: 85 }), rightLowerArm: arm('rightLowerArm', { x: 85 }),
+      upperChest: rx(12), head: rx(10),
+    } },
+    { t: 1.6, bones: {} },
+  ]),
+
+  // 飞吻（近似：右手到嘴边再前伸张开）
+  clip('blow_kiss', 2.0, false, [
+    { t: 0.0, bones: {} },
+    { t: 0.6, bones: {
+      rightUpperArm: arm('rightUpperArm', { x: -60, z: 8, y: 15 }), rightLowerArm: arm('rightLowerArm', { x: 110, y: -15 }),
+      head: rz(-5),
+    } },
+    { t: 1.0, bones: {
+      rightUpperArm: arm('rightUpperArm', { x: -60, z: 8, y: 15 }), rightLowerArm: arm('rightLowerArm', { x: 110, y: -15 }),
+      head: rz(-5),
+    } },
+    { t: 1.4, bones: {
+      rightUpperArm: arm('rightUpperArm', { x: -80, z: 12, y: 25 }), rightLowerArm: arm('rightLowerArm', { x: 15 }),
+      head: rz(-5),
+    } },
+    { t: 2.0, bones: {} },
+  ]),
+
   // 手背后：上臂后旋微后摆 + 前臂后弯，单次播完回落
   clip('idle_hands_behind', 4.0, false, [
     { t: 0.0, bones: {} },
