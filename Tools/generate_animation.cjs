@@ -222,18 +222,19 @@ const clips = [
     { t: 3.6, bones: {} },
   ]),
 
-  // 惊讶后缩：上身后仰 + 双臂张开 + 头后仰，快速到位保持回落
+  // 惊讶后缩：上身后仰 + 双臂张开伸直 + 头后仰，快速到位保持回落
+  // （前臂必须伸直：张臂时前臂弯曲在视觉上像"肘到手截短"，见 arm() 注释）
   clip('surprised_step_back', 1.8, false, [
     { t: 0.0, bones: {} },
     { t: 0.3, bones: {
       upperChest: rx(-10), head: rx(-8),
-      leftUpperArm: arm('leftUpperArm', { z: -22, x: -30 }), rightUpperArm: arm('rightUpperArm', { z: 22, x: -30 }),
-      leftLowerArm: arm('leftLowerArm', { x: 25 }), rightLowerArm: arm('rightLowerArm', { x: 25 }),
+      leftUpperArm: arm('leftUpperArm', { z: -38, x: -10 }), rightUpperArm: arm('rightUpperArm', { z: 38, x: -10 }),
+      leftLowerArm: arm('leftLowerArm', { x: 5 }), rightLowerArm: arm('rightLowerArm', { x: 5 }),
     } },
     { t: 1.1, bones: {
       upperChest: rx(-10), head: rx(-8),
-      leftUpperArm: arm('leftUpperArm', { z: -22, x: -30 }), rightUpperArm: arm('rightUpperArm', { z: 22, x: -30 }),
-      leftLowerArm: arm('leftLowerArm', { x: 25 }), rightLowerArm: arm('rightLowerArm', { x: 25 }),
+      leftUpperArm: arm('leftUpperArm', { z: -38, x: -10 }), rightUpperArm: arm('rightUpperArm', { z: 38, x: -10 }),
+      leftLowerArm: arm('leftLowerArm', { x: 5 }), rightLowerArm: arm('rightLowerArm', { x: 5 }),
     } },
     { t: 1.8, bones: {} },
   ]),
@@ -242,27 +243,27 @@ const clips = [
   clip('celebrate', 2.2, false, [
     { t: 0.0, bones: {} },
     { t: 0.35, bones: {
-      rightUpperArm: arm('rightUpperArm', { z: -135, x: -15 }), rightLowerArm: arm('rightLowerArm', { x: 95 }),
+      rightUpperArm: arm('rightUpperArm', { z: -135, x: -15 }), rightLowerArm: arm('rightLowerArm', { x: 78 }),
       leftUpperArm: arm('leftUpperArm', { x: 10, y: 25, z: -10 }), leftLowerArm: arm('leftLowerArm', { x: 60 }),
       head: rx(-6),
     } },
     { t: 0.55, bones: {
-      rightUpperArm: arm('rightUpperArm', { z: -120, x: -15 }), rightLowerArm: arm('rightLowerArm', { x: 80 }),
+      rightUpperArm: arm('rightUpperArm', { z: -120, x: -15 }), rightLowerArm: arm('rightLowerArm', { x: 65 }),
       leftUpperArm: arm('leftUpperArm', { x: 10, y: 25, z: -10 }), leftLowerArm: arm('leftLowerArm', { x: 60 }),
       head: rx(-6),
     } },
     { t: 0.8, bones: {
-      rightUpperArm: arm('rightUpperArm', { z: -135, x: -15 }), rightLowerArm: arm('rightLowerArm', { x: 95 }),
+      rightUpperArm: arm('rightUpperArm', { z: -135, x: -15 }), rightLowerArm: arm('rightLowerArm', { x: 78 }),
       leftUpperArm: arm('leftUpperArm', { x: 10, y: 25, z: -10 }), leftLowerArm: arm('leftLowerArm', { x: 60 }),
       head: rx(-6),
     } },
     { t: 1.0, bones: {
-      rightUpperArm: arm('rightUpperArm', { z: -120, x: -15 }), rightLowerArm: arm('rightLowerArm', { x: 80 }),
+      rightUpperArm: arm('rightUpperArm', { z: -120, x: -15 }), rightLowerArm: arm('rightLowerArm', { x: 65 }),
       leftUpperArm: arm('leftUpperArm', { x: 10, y: 25, z: -10 }), leftLowerArm: arm('leftLowerArm', { x: 60 }),
       head: rx(-6),
     } },
     { t: 1.3, bones: {
-      rightUpperArm: arm('rightUpperArm', { z: -135, x: -15 }), rightLowerArm: arm('rightLowerArm', { x: 95 }),
+      rightUpperArm: arm('rightUpperArm', { z: -135, x: -15 }), rightLowerArm: arm('rightLowerArm', { x: 78 }),
       leftUpperArm: arm('leftUpperArm', { x: 10, y: 25, z: -10 }), leftLowerArm: arm('leftLowerArm', { x: 60 }),
       head: rx(-6),
     } },
