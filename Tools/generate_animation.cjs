@@ -31,9 +31,31 @@ function rot(axis, deg) {
 const rx = d => rot([1, 0, 0], d);
 const ry = d => rot([0, 1, 0], d);
 const rz = d => rot([0, 0, 1], d);
+/** Hamilton 积 a*b（先 a 后 b，b 在 a 的局部坐标系）。 */
+function mul(a, b) {
+  const [ax, ay, az, aw] = a, [bx, by, bz, bw] = b;
+  return [
+    aw * bx + ax * bw + ay * bz - az * by,
+    aw * by - ax * bz + ay * bw + az * bx,
+    aw * bz + ax * by - ay * bx + az * bw,
+    aw * bw - ax * bx - ay * by - az * bz,
+  ];
+}
 const IDENTITY = [0, 0, 0, 1];
 const lerp = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
-const easeInOut = t => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
+
+/**
+ * 手臂骨骼的 rest 基准（对齐 vrm_scene.js applyRestPose 的 Z±65°/Z±10° 下垂姿势）。
+ * 动画帧是绝对覆盖：手臂姿势必须写成 REST 与偏移的叠加（REST * delta），
+ * 漏掉 Z 分量会把上臂打回 T-pose 平伸（"伸开双臂"bug 的根因）。
+ */
+const ARM_REST = {
+  leftUpperArm: rz(65), rightUpperArm: rz(-65),
+  leftLowerArm: rz(10), rightLowerArm: rz(-10),
+};
+/** 在 rest 基准上叠加偏移（局部系欧拉 x/y/z，单位度）。 */
+const arm = (bone, { x = 0, y = 0, z = 0 }) =>
+  mul(ARM_REST[bone], mul(mul(rx(x), ry(y)), rz(z)));
 
 /** 关键帧 → 30fps 全帧 clip（每骨骼线性插值四元数分量；JS 端还会 slerp，够平滑）。 */
 function clip(name, duration, loop, keys) {
@@ -69,11 +91,17 @@ const clips = [
     { t: 1.6, bones: {} },
   ]),
 
-  // 耸肩：双肩上提放下
+  // 耸肩：双肩上提放下（手臂在 rest 基准上微收）
   clip('shrug', 1.3, false, [
     { t: 0.0, bones: {} },
-    { t: 0.35, bones: { leftShoulder: rz(8), rightShoulder: rz(-8), leftUpperArm: rz(15), rightUpperArm: rz(-15) } },
-    { t: 0.75, bones: { leftShoulder: rz(8), rightShoulder: rz(-8), leftUpperArm: rz(15), rightUpperArm: rz(-15) } },
+    { t: 0.35, bones: {
+      leftShoulder: rz(8), rightShoulder: rz(-8),
+      leftUpperArm: arm('leftUpperArm', { z: 6 }), rightUpperArm: arm('rightUpperArm', { z: -6 }),
+    } },
+    { t: 0.75, bones: {
+      leftShoulder: rz(8), rightShoulder: rz(-8),
+      leftUpperArm: arm('leftUpperArm', { z: 6 }), rightUpperArm: arm('rightUpperArm', { z: -6 }),
+    } },
     { t: 1.3, bones: {} },
   ]),
 
@@ -92,11 +120,11 @@ const clips = [
     { t: 3.0, bones: { head: rx(22), neck: rx(8), upperChest: rx(6) } },
   ]),
 
-  // 好奇张望：头左右慢转带一点歪
-  clip('curious_look', 4.0, true, [
+  // 好奇张望：头左右慢转，单次播完回正（闲时变体不再永续循环）
+  clip('curious_look', 4.0, false, [
     { t: 0.0, bones: {} },
     { t: 0.8, bones: { head: ry(-22) } },
-    { t: 1.6, bones: { head: ry(-20), }, },
+    { t: 1.6, bones: { head: ry(-20) } },
     { t: 2.4, bones: { head: ry(22) } },
     { t: 3.2, bones: { head: ry(20) } },
     { t: 4.0, bones: {} },
@@ -113,50 +141,67 @@ const clips = [
     { t: 2.4, bones: { upperChest: rx(-6), head: rx(-8) } },
   ]),
 
-  // 打哈欠：双臂缓举过头 + 头后仰，保持一拍回落
+  // 打哈欠：双臂自 rest 侧举过头 + 头后仰，保持一拍回落
   clip('sleepy_yawn', 3.4, false, [
     { t: 0.0, bones: {} },
     { t: 1.4, bones: {
-      leftUpperArm: rx(-150), rightUpperArm: rx(-150),
-      leftLowerArm: rx(-12), rightLowerArm: rx(-12),
+      leftUpperArm: arm('leftUpperArm', { z: 110, x: -15 }), rightUpperArm: arm('rightUpperArm', { z: -110, x: -15 }),
+      leftLowerArm: arm('leftLowerArm', { x: -12 }), rightLowerArm: arm('rightLowerArm', { x: -12 }),
       head: rx(-12), spine: rx(-4),
     } },
     { t: 2.2, bones: {
-      leftUpperArm: rx(-150), rightUpperArm: rx(-150),
-      leftLowerArm: rx(-12), rightLowerArm: rx(-12),
+      leftUpperArm: arm('leftUpperArm', { z: 110, x: -15 }), rightUpperArm: arm('rightUpperArm', { z: -110, x: -15 }),
+      leftLowerArm: arm('leftLowerArm', { x: -12 }), rightLowerArm: arm('rightLowerArm', { x: -12 }),
       head: rx(-12), spine: rx(-4),
     } },
     { t: 3.4, bones: {} },
   ]),
 
-  // 叉腰自信：双臂外展 + 头微歪（静态呼吸）
+  // 叉腰自信：上臂略外展内旋 + 前臂弯向腰侧 + 头微歪
   clip('proud_pose', 3.0, true, [
-    { t: 0.0, bones: { leftUpperArm: rz(32), rightUpperArm: rz(-32), leftLowerArm: rx(0), head: rz(6) } },
-    { t: 1.5, bones: { leftUpperArm: rz(33), rightUpperArm: rz(-33), head: rz(6.5) } },
-    { t: 3.0, bones: { leftUpperArm: rz(32), rightUpperArm: rz(-32), head: rz(6) } },
-  ]),
-
-  // 抱臂：双臂前收交叉（保守幅度防穿模）
-  clip('idle_arms_crossed', 3.0, true, [
     { t: 0.0, bones: {
-      leftUpperArm: rx(22), leftLowerArm: rx(75),
-      rightUpperArm: rx(22), rightLowerArm: rx(75),
+      leftUpperArm: arm('leftUpperArm', { z: -25, y: -25 }), rightUpperArm: arm('rightUpperArm', { z: 25, y: 25 }),
+      leftLowerArm: arm('leftLowerArm', { x: 55, y: 25 }), rightLowerArm: arm('rightLowerArm', { x: 55, y: -25 }),
+      head: rz(6),
     } },
     { t: 1.5, bones: {
-      leftUpperArm: rx(23), leftLowerArm: rx(76),
-      rightUpperArm: rx(23), rightLowerArm: rx(76),
+      leftUpperArm: arm('leftUpperArm', { z: -26, y: -25 }), rightUpperArm: arm('rightUpperArm', { z: 26, y: 25 }),
+      leftLowerArm: arm('leftLowerArm', { x: 56, y: 25 }), rightLowerArm: arm('rightLowerArm', { x: 56, y: -25 }),
+      head: rz(6.5),
     } },
     { t: 3.0, bones: {
-      leftUpperArm: rx(22), leftLowerArm: rx(75),
-      rightUpperArm: rx(22), rightLowerArm: rx(75),
+      leftUpperArm: arm('leftUpperArm', { z: -25, y: -25 }), rightUpperArm: arm('rightUpperArm', { z: 25, y: 25 }),
+      leftLowerArm: arm('leftLowerArm', { x: 55, y: 25 }), rightLowerArm: arm('rightLowerArm', { x: 55, y: -25 }),
+      head: rz(6),
     } },
   ]),
 
-  // 手背后：上臂后收
-  clip('idle_hands_behind', 3.0, true, [
-    { t: 0.0, bones: { leftUpperArm: rx(-10), rightUpperArm: rx(-10), leftLowerArm: rx(25), rightLowerArm: rx(25) } },
-    { t: 1.5, bones: { leftUpperArm: rx(-11), rightUpperArm: rx(-11), leftLowerArm: rx(26), rightLowerArm: rx(26) } },
-    { t: 3.0, bones: { leftUpperArm: rx(-10), rightUpperArm: rx(-10), leftLowerArm: rx(25), rightLowerArm: rx(25) } },
+  // 抱臂：上臂略外展 + 前臂前弯交叉在胸前，单次播完回落（不再永续卡姿势）
+  clip('idle_arms_crossed', 4.0, false, [
+    { t: 0.0, bones: {} },
+    { t: 0.5, bones: {
+      leftUpperArm: arm('leftUpperArm', { z: -18, y: -35 }), rightUpperArm: arm('rightUpperArm', { z: 18, y: 35 }),
+      leftLowerArm: arm('leftLowerArm', { x: 80, y: 30 }), rightLowerArm: arm('rightLowerArm', { x: 80, y: -30 }),
+    } },
+    { t: 3.5, bones: {
+      leftUpperArm: arm('leftUpperArm', { z: -18, y: -35 }), rightUpperArm: arm('rightUpperArm', { z: 18, y: 35 }),
+      leftLowerArm: arm('leftLowerArm', { x: 80, y: 30 }), rightLowerArm: arm('rightLowerArm', { x: 80, y: -30 }),
+    } },
+    { t: 4.0, bones: {} },
+  ]),
+
+  // 手背后：上臂后旋微后摆 + 前臂后弯，单次播完回落
+  clip('idle_hands_behind', 4.0, false, [
+    { t: 0.0, bones: {} },
+    { t: 0.5, bones: {
+      leftUpperArm: arm('leftUpperArm', { x: 12, y: 25 }), rightUpperArm: arm('rightUpperArm', { x: 12, y: -25 }),
+      leftLowerArm: arm('leftLowerArm', { x: 30 }), rightLowerArm: arm('rightLowerArm', { x: 30 }),
+    } },
+    { t: 3.5, bones: {
+      leftUpperArm: arm('leftUpperArm', { x: 12, y: 25 }), rightUpperArm: arm('rightUpperArm', { x: 12, y: -25 }),
+      leftLowerArm: arm('leftLowerArm', { x: 30 }), rightLowerArm: arm('rightLowerArm', { x: 30 }),
+    } },
+    { t: 4.0, bones: {} },
   ]),
 ];
 
