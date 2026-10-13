@@ -407,6 +407,40 @@ const clips = [
     { t: 2.0, bones: {} },
   ]),
 
+  // 开心雀跃（happy_jump 近似：无骨骼位移，用屈膝蓄力-伸展挥臂两拍节奏模拟跳跃感）
+  clip('happy_jump', 2.0, false, [
+    { t: 0.0, bones: {} },
+    // 第一跳：蹲
+    { t: 0.3, bones: {
+      leftUpperLeg: rx(18), rightUpperLeg: rx(18),
+      leftLowerLeg: rx(-35), rightLowerLeg: rx(-35),
+      upperChest: rx(8), head: rx(6),
+      leftUpperArm: arm('leftUpperArm', { x: 20, z: -8 }), rightUpperArm: arm('rightUpperArm', { x: 20, z: 8 }),
+    } },
+    // 跳起伸展：腿伸直、手臂高举、头上扬
+    { t: 0.5, bones: {
+      leftUpperLeg: rx(2), rightUpperLeg: rx(2),
+      leftLowerLeg: rx(-4), rightLowerLeg: rx(-4),
+      upperChest: rx(-6), head: rx(-10),
+      leftUpperArm: arm('leftUpperArm', { z: 100, x: -20 }), rightUpperArm: arm('rightUpperArm', { z: -100, x: -20 }),
+    } },
+    // 第二跳蹲
+    { t: 0.9, bones: {
+      leftUpperLeg: rx(18), rightUpperLeg: rx(18),
+      leftLowerLeg: rx(-35), rightLowerLeg: rx(-35),
+      upperChest: rx(8), head: rx(6),
+      leftUpperArm: arm('leftUpperArm', { x: 20, z: -8 }), rightUpperArm: arm('rightUpperArm', { x: 20, z: 8 }),
+    } },
+    // 跳起
+    { t: 1.1, bones: {
+      leftUpperLeg: rx(2), rightUpperLeg: rx(2),
+      leftLowerLeg: rx(-4), rightLowerLeg: rx(-4),
+      upperChest: rx(-6), head: rx(-10),
+      leftUpperArm: arm('leftUpperArm', { z: 100, x: -20 }), rightUpperArm: arm('rightUpperArm', { z: -100, x: -20 }),
+    } },
+    { t: 2.0, bones: {} },
+  ]),
+
   // 手背后：上臂后旋微后摆 + 前臂后弯，单次播完回落
   clip('idle_hands_behind', 4.0, false, [
     { t: 0.0, bones: {} },
