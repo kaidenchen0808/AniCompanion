@@ -40,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private(set) var mainWindow: NSWindow?
     private var petCancellable: AnyCancellable?
+    private var sceneReadyCancellable: AnyCancellable?
     private var isPetActive = false
 
     /// Which side of her face the speech bubble currently sits on ("left"/"right"); flipped as
@@ -67,6 +68,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.hidesOnDeactivate = false
         window.title = String(localized: "AI Agent | Xiaoguang", comment: "Window title — character name")
         window.center()
+        let startInPet = appState.launchInPetMode
+        if startInPet {
+            // Hide the windowed form until pet mode is in place — the user sees her appear
+            // at the bottom-right directly, never a 1000x650 window flashing by.
+            window.alphaValue = 0
+        }
         window.makeKeyAndOrderFront(nil)
         mainWindow = window
         window.delegate = self   // windowDidMove → re-pick the bubble side as she's dragged
@@ -79,8 +86,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .sink { [weak self] petMode in
                 guard let self, let window = self.mainWindow, petMode != self.isPetActive else { return }
                 self.isPetActive = petMode
+                self.appState.launchInPetMode = petMode   // remember the explicit choice
                 petMode ? self.enterPet(window) : self.exitPet(window)
             }
+
+        // Launch-as-pet: the webView only exists once MainView mounts (windowed form), so
+        // wait for the scene to be ready, then flip petMode — the sink above does the rest.
+        if startInPet {
+            sceneReadyCancellable = appState.characterManager.$isSceneReady
+                .receive(on: RunLoop.main)
+                .sink { [weak self] ready in
+                    guard ready, let self, !self.isPetActive else { return }
+                    self.appState.petMode = true
+                    self.mainWindow?.alphaValue = 1
+                }
+            // Fail-safe: if the scene never reports ready (odd webview failure), show the
+            // windowed form after 3s instead of leaving the app invisible.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+                guard let self, !self.isPetActive else { return }
+                self.mainWindow?.alphaValue = 1
+            }
+        }
     }
 
     private func makeWindowedController() -> NSViewController {
