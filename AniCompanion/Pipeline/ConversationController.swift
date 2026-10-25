@@ -59,6 +59,10 @@ final class ConversationController: ObservableObject {
     /// The most recent error, if any. Cleared on next interaction.
     @Published var lastError: Error?
 
+    /// While true, server-pushed notifications are acked and dropped without speaking — set by
+    /// AppState/AppDelegate when the pet rests in quiet mode (no TTS, no bubble).
+    var isQuietMode = false
+
     /// Whether TTS voice output is enabled. When false, text and expressions still work but no audio plays.
     var ttsEnabled: Bool = true
 
@@ -695,6 +699,13 @@ final class ConversationController: ObservableObject {
 
     /// Handle a server-pushed notification (e.g. cron job result).
     private func handleNotification(ref: String, source: String) {
+        // Quiet mode: she's resting — ack (so the backend doesn't retry) and drop without speaking.
+        if isQuietMode {
+            Log.pipeline("[Pipeline] Notification \(ref) dropped — quiet mode")
+            Task { try? await chatTransport.send(.ack(ref: ref)) }
+            return
+        }
+
         // If user is chatting, ignore the notification (user takes priority).
         guard !isProcessing else {
             Log.pipeline("[Pipeline] Notification \(ref) ignored — user is processing")

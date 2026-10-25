@@ -2,6 +2,17 @@ import SwiftUI
 import Combine
 import WebKit
 
+// MARK: - DisplayMode
+
+/// Which form the desktop pet takes: the full-size companion, or the quiet mini form docked
+/// at the bottom-right corner (translucent, no speech, no bubble — she's resting).
+/// Only meaningful while `petMode` is active; in windowed mode the value persists but has no
+/// visible effect until the next enter-pet.
+enum DisplayMode: String, CaseIterable {
+    case companion
+    case quiet
+}
+
 // MARK: - AppState
 
 /// Central observable state object for AniCompanion.
@@ -171,6 +182,17 @@ final class AppState: ObservableObject {
     /// draggable character with no chat panel. Toggled from the Character menu (⌘⇧D).
     @Published var petMode: Bool = false
 
+    /// Display form of the desktop pet. Applied by AppDelegate (window-level work) via a Combine
+    /// sink on `$displayMode` — the same pattern as `petMode`. Toggled from the pet context menu,
+    /// Settings → Mode, or by clicking the quiet mini form.
+    @Published var displayMode: DisplayMode = {
+        DisplayMode(rawValue: UserDefaults.standard.string(forKey: "display_mode") ?? "") ?? .companion
+    }()
+
+    /// Persistence slot for `displayMode` (written by AppDelegate's sink — the single place that
+    /// applies mode changes, mirroring the petMode/launchInPetMode split).
+    @AppStorage("display_mode") var displayModeStorage: String = DisplayMode.companion.rawValue
+
     /// Captures what the user is working on so 小光 can "see" the screen. Long-lived so it tracks
     /// the user's active app across the whole session (see `ScreenVisionService`); gated by
     /// `screenVisionEnabled`. Not `@Published` — nothing observes it reactively.
@@ -327,6 +349,10 @@ final class AppState: ObservableObject {
 
         // Load the configured VRM character model from Resources/VRMModel.
         characterManager.loadModel(named: effectiveVRMModelFilename)
+
+        // Quiet mode suppresses server-pushed notifications. Re-applied here because
+        // reinitializeServices() rebuilds the controller (a fresh one defaults to false).
+        conversationController?.isQuietMode = (displayMode == .quiet && petMode)
 
         // Trigger launch greeting after model loads.
         controller.triggerLaunchGreeting()
