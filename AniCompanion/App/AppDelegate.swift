@@ -232,6 +232,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// reveal in the petMode sink stays in charge of that).
     private func enterQuiet() {
         guard let window = mainWindow, let webView = appState.characterManager.webView else { return }
+        framePersistWork?.cancel()   // a pending debounced save must not observe the quiet frame
         isQuietActive = true
         appState.conversationController?.isQuietMode = true   // drop pushed notifications (owned HERE)
         appState.conversationController?.cancel()          // stop mid-sentence TTS
