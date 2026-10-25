@@ -417,11 +417,14 @@ case .kokoro:
 
 ---
 
-## Manual Checklist（产品主人执行；前置：跑 `scripts/make-voicepack.sh` 发布 Release 并回填 sha256/size）
+## Manual Checklist（产品主人执行）
 
-- [ ] Settings → TTS Provider 选 Kokoro → 显示语音包卡片（体积说明）
-- [ ] 点 Download → 进度条推进 → 完成后自动切 Kokoro + 自动听到试听句（新声线）
-- [ ] 声线下拉 8 项，切换后试听各不相同；小妮为默认
+前置（v1 已完成）：Release `voicepack-kokoro-v1`（catsmice/AniCompanion）asset `kokoro-zh-v1.zip` 已由 `bash scripts/make-voicepack.sh --publish` 发布，sha256/size 已回填 `VoicepackStore`。**重打包必须重跑 `--publish` 并重填哈希**（脚本会打印待回填值）。
+
+- [ ] **发布前 sid 声线顺序人耳抽验**：zf_xiaoni（sid 1）应为温柔女声、zm_yunjian（sid 4）男声——`voices.bin` 内容无法静态验证，`KokoroVoice` 的 sid 映射以官方 speaker 表为准，顺序错了就是"男声叫小妮"
+- [ ] Settings → TTS Provider 选 Kokoro → 显示语音包卡片（体积说明 ~140MB，磁盘 <~280MB 时 Download 禁用）
+- [ ] 点 Download → 进度条推进（可 Cancel 回未安装态）→ 完成后自动听到试听句（新声线，无需 Save；Save 持久化选择）
+- [ ] 声线下拉 8 项，切换后试听各不相同；小妮（温柔）为默认
 - [ ] 与她对话 → Kokoro 语音自然有抑扬（对比 Apple 明显改善）、唇形同步正常
 - [ ] 下载中途断网 → 错误提示 + 重试可完成
 - [ ] 删除 `…/Voicepack/kokoro/tokens.txt` → Settings 回到"未安装"态；聊天仍出声（回落 Apple）
@@ -429,4 +432,4 @@ case .kokoro:
 - [ ] 静隐模式下她不发声（Kokoro 抑制路径同通知抑制）
 - [ ] 首句延迟可接受（模型加载后 <1s/句）
 - [ ] zh-Hant 界面全部新文案为繁体；en 界面为英文
-- [ ] 全量单测通过（最终以实际数量为准，基线 21 + 新增）
+- [ ] 全量单测通过（29/29 @ 010df05）

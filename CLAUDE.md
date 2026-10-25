@@ -15,7 +15,9 @@ macOS desktop AI character app with VRM 3D character rendering, LLM chat, TTS sp
 - **LLM**: Local **Hermes Agent** gateway — OpenAI-compatible HTTP API (`POST
   http://127.0.0.1:8642/v1/chat/completions`, `stream:true` SSE, Bearer auth). Bring your own.
 - **TTS**: Pluggable provider (`TTSProvider`) — **Apple** on-device `AVSpeechSynthesizer` (no key,
-  no network, WAV; **default**), **MiniMax** Speech-02-Turbo (streaming SSE, hex-encoded MP3, cloud), **OpenAI**
+  no network, WAV; **default**), **Kokoro** on-device neural TTS (sherpa-onnx + Kokoro-82M int8 via a
+  one-time ~140 MB voicepack download, 8 zh voices; auto-falls back to Apple when not installed),
+  **MiniMax** Speech-02-Turbo (streaming SSE, hex-encoded MP3, cloud), **OpenAI**
   Speech API (`POST /v1/audio/speech`, WAV), or a local **BlueMagpie-TTS** HTTP server (`POST
   /v1/tts`, WAV). User supplies the cloud provider key, or runs the BlueMagpie server (see
   `Tools/blue_magpie_tts_server.py`)
@@ -37,13 +39,14 @@ AniCompanion/
 ├── AniCompanion/
 │   ├── App/             # App entry (AniCompanionApp), AppDelegate (owns the NSWindow + pet mode), AppState, AppLanguage, Log
 │   ├── Views/           # SwiftUI views (Main, Chat, Settings, Workshop) + DesktopPet (PetDragView: click=touch her, drag=move, double-click=exit, right-click=context menu)
-│   ├── Services/        # ChatTransport + HTTPChatService (Hermes), TTS (TTSProvider: MiniMax + OpenAI + BlueMagpie), STT, ScreenVision, AudioPlayer, ObjCSupport
+│   ├── Services/        # ChatTransport + HTTPChatService (Hermes), TTS (TTSProvider: MiniMax + OpenAI + BlueMagpie + Kokoro — SherpaOnnxEngine/KokoroTTSService/VoicepackStore), STT, ScreenVision, AudioPlayer, ObjCSupport
 │   ├── Character/       # ThreeVRMCharacterManager, ThreeVRMRenderView (WKWebView bridge to three-vrm)
 │   ├── Pipeline/        # Orchestration (ConversationController, SentenceParser, AudioQueue)
 │   ├── Models/          # Data models (ChatMessage, Emotion, ConversationHistory, AnimationClip)
+│   ├── Libraries/       # Vendored sherpa-onnx dylibs (libsherpa-onnx-c-api + libonnxruntime, arm64) + c-api.h + module.modulemap
 │   └── Resources/       # Persona/<lang>/ (system_prompt.txt + proactive.json), Localizable.xcstrings, VRMModel/, Animations/ (JSON keyframe clips), ThreeVRM/ (HTML+JS scene)
 ├── Tools/               # Blender animation export + app-icon generator
-├── scripts/             # download-model.sh (fetches the optional Alicia Solid VRM)
+├── scripts/             # download-model.sh (fetches the optional Alicia Solid VRM), make-voicepack.sh (build/publish the Kokoro voicepack Release asset)
 ├── project.yml          # XcodeGen project spec
 └── AniCompanion.xcodeproj
 ```
@@ -65,6 +68,11 @@ bash scripts/build-dmg.sh
 
 # Reset to first-run state to re-test the setup wizard (backup + SIGKILL/cfprefsd-safe); --restore to undo
 ./scripts/reset-onboarding.sh
+
+# Build the Kokoro voicepack Release asset (product owner; --publish uploads it via gh).
+# Pins mtimes so the same source tarball re-packs bit-identically, then prints the sha256/size
+# to paste into VoicepackStore — v1 is already backfilled; a re-pack needs re-pasting.
+bash scripts/make-voicepack.sh [--publish]
 
 # Open in Xcode
 open AniCompanion.xcodeproj
@@ -114,7 +122,8 @@ User input (text or voice) → HTTP chat (Hermes) → SentenceParser → paralle
   messages (poll or realtime WebSocket, via `emitNotification`) through the normal TTS pipeline;
   user-chat barge-in cancels a playing notification.
 - **TTSProvider** (enum registry): the voice analogue of `ChatBackend`. `apple` (on-device
-  `AVSpeechSynthesizer`, no key/network, WAV) + `miniMax` (cloud Speech-02-Turbo, hex-encoded MP3
+  `AVSpeechSynthesizer`, no key/network, WAV) + `kokoro` (on-device neural via sherpa-onnx, see
+  `KokoroTTSService`) + `miniMax` (cloud Speech-02-Turbo, hex-encoded MP3
   over SSE) + `openAI` (cloud `POST /v1/audio/speech`, WAV output) + `blueMagpie` (local `POST
   /v1/tts`, WAV). `AppState.makeTTSService()` builds the selected `any TTSServiceProtocol`; the
   Settings **TTS Provider** picker swaps providers and shows per-provider fields.
@@ -132,6 +141,20 @@ User input (text or voice) → HTTP chat (Hermes) → SentenceParser → paralle
   are excluded; Meijia is the zh-TW baseline). Emotion maps to a subtle `pitchMultiplier` only —
   `AVSpeechUtterance` has no real emotional TTS. Compact voices sound robotic; Enhanced/Premium are a
   one-time OS download in System Settings → Accessibility → Spoken Content → Manage Voices.
+- **KokoroTTSService** (`kokoro`): on-device neural TTS — `SherpaOnnxEngine` (the only layer that
+  touches the sherpa-onnx C API; vendored **v1.13.8** dual dylib, arm64-only) running the
+  Kokoro-82M int8 model from a downloadable **voicepack**: `VoicepackStore` downloads the GitHub
+  Release zip (~140 MB once), verifies its hardcoded sha256, unzips via `/usr/bin/ditto`, and
+  atomically installs into `…/Application Support/AniCompanion/Voicepack/kokoro` (a failure at any
+  step cleans its temps — never a half-installed pack). The engine is created lazily on first
+  synthesis (1–3 s model load); a failed create caches an **inert shell** (`isLoaded == false`) so
+  a broken pack fails fast on every sentence instead of re-loading. Synthesis runs in a
+  `Task.detached` (the C call is synchronous + CPU-bound) and yields one 24 kHz mono WAV per
+  sentence (`KokoroWAV`: hand-written 44-byte header, float32 → clamped int16) — same contract
+  shape as `AppleTTSService`, so lip-sync + `AudioQueue` work unchanged. The 8 zh voices are the
+  model's speaker ids (`KokoroVoice`, 4 female + 4 male; default 小妮, gentle). **Never mute**:
+  `AppState.makeTTSService()` falls back to `AppleTTSService` whenever the pack isn't installed
+  (selected-but-since-deleted included).
 
 ### VRM Character Rendering (three-vrm + WKWebView)
 
@@ -336,8 +359,14 @@ User input (text or voice) → HTTP chat (Hermes) → SentenceParser → paralle
   Workshop** window (import/switch/delete, instant apply — see "Pet Context Menu & Quiet Mode").
   The in-panel model picker (and its in-app "Download Alicia Solid" download) was removed; model
   switching lives in the workshop now.
-- **Enable TTS Voice** + **TTS Provider** (`Apple (on-device)` default | `MiniMax` | `OpenAI` | `BlueMagpie`):
+- **Enable TTS Voice** + **TTS Provider** (`Apple (on-device)` default | `Kokoro` | `MiniMax` | `OpenAI` | `BlueMagpie`):
   - Apple *(default)*: **Voice** (Auto / installed voices) + **Rate** — no key, no network
+  - Kokoro: a tri-state **voicepack card** — not installed (blurb + **Download Voicepack**, a
+    one-time ~140 MB; disabled with a warning under ~280 MB free) / downloading (progress bar +
+    percent + **Cancel**) / installed (**Voice** picker with the 8 zh voices, default 小妮
+    gentle). When a download completes she previews the new voice immediately (auto-listen,
+    before Save). "Uninstall" = delete the `Voicepack/kokoro` directory — the card's render
+    truth is a live file check, so it falls back to not-installed and chat falls back to Apple.
   - MiniMax: **API Key**, **Group ID**, **Voice ID**
   - OpenAI: **API Key**, **TTS Model**, **Voice**, **Voice Instructions**, **Speed**
   - BlueMagpie: **Server** URL (default `http://127.0.0.1:8765`) + **Inference Timesteps**
@@ -463,11 +492,30 @@ it answers from the model.
   trap: views that must survive a reopen should read persisted state at render time, like
   `WorkshopView` does). And `showSettingsWindow:` was removed in macOS 14 — never fires. Details
   under "Pet Context Menu & Quiet Mode".
+- **Vendored dylibs must go through XcodeGen `dependencies: - framework:` with `embed: true`, not
+  a `sources` entry**: a bare sources entry for a dylib only drops it into Resources — nothing
+  links it. The working wiring (project.yml, for the vendored sherpa-onnx dylibs): one
+  `dependencies: - framework: <path> embed: true` per dylib (c-api **and** onnxruntime), the main
+  target's `sources` **excludes** `Libraries/**` (keeps the folder scan away), `LIBRARY_SEARCH_PATHS`
+  at the dylib folder (the modulemap's `link` autolinks `-lsherpa-onnx-c-api`; onnxruntime loads
+  transitively via its @rpath dependency), `SWIFT_INCLUDE_PATHS` on **both** targets (the unit
+  tests `@testable import` the app and need the C module too), and **`ARCHS: arm64`** — the
+  vendored dylibs are arm64-only, so a Release universal build fails on the x86_64 slice.
+- **sherpa-onnx v2.0 removed built-in phonemization** — kokoro Chinese *text* synthesis is
+  unusable there, so the vendored dylib is locked to **v1.13.8**. Version notes for the C API:
+  1.13+ functions are **CamelCase** (`SherpaOnnxCreateOfflineTts`,
+  `SherpaOnnxOfflineTtsGenerateWithConfig`), and kokoro ≥ 1.0 config takes the **`voices`** field
+  (a single `voices.bin` file), *not* `voices_dir`.
+- **zip mtime breaks voicepack reproducibility**: zip archives record per-file mtimes, so
+  re-packing the same source tarball produced different bytes → the sha256 hardcoded in
+  `VoicepackStore.expectedSHA256` wouldn't match a rebuilt asset. `make-voicepack.sh` pins every
+  file to one fixed mtime, making the pack bit-identical across reruns of the same tarball.
 
 ## Status
 
 Implemented: VRM rendering + spring bones, streaming chat via Hermes, pluggable TTS (Apple
-on-device + MiniMax + OpenAI + local BlueMagpie) with lip sync, pluggable STT voice input (Apple
+on-device + **Kokoro** on-device neural — 8 zh voices via a one-time voicepack download, with
+auto-fallback to Apple — + MiniMax + OpenAI + local BlueMagpie) with lip sync, pluggable STT voice input (Apple
 on-device + Groq/OpenAI Whisper), opt-in **hands-free mode** (half-duplex continuous-listen loop) with
 an opt-in **full-duplex** sub-mode (lazy-VPIO echo-cancelled voice barge-in — talk over her; VPIO runs
 only while she speaks so other audio ducks just during her responses),
