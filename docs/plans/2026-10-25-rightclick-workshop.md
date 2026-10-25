@@ -986,7 +986,7 @@ git commit -m "feat: settings — Mode & About sections, Character delegates to 
 | Character Model | 角色模型 |
 | About | 關於 |
 | A desktop AI companion — she watches your work, chats, and keeps you company. | 桌面 AI 伴侶——她看著你工作、聊天、陪著你。 |
-| Character: AvatarSample (小光) / Alicia Solid © DWANGO — fetched on demand for personal use; see ATTRIBUTION.md. | 角色：AvatarSample（小光）/ Alicia Solid © DWANGO——僅供個人使用、按需下載；詳見 ATTRIBUTION.md。 |
+| Character: AvatarSample (小光) © VRoid / Alicia Solid © DWANGO — downloaded separately; see ATTRIBUTION.md. | 角色：AvatarSample（小光）© VRoid / Alicia Solid © DWANGO——另行下載；詳見 ATTRIBUTION.md。 |
 | Rendering: three-vrm + three.js. Animations derived from Mixamo. | 渲染：three-vrm + three.js。動作動畫源自 Mixamo。 |
 | Import VRM… | 匯入 VRM… |
 | Built-in | 內建 |
@@ -1027,8 +1027,8 @@ translations = {
     "About": "關於",
     "A desktop AI companion — she watches your work, chats, and keeps you company.":
         "桌面 AI 伴侶——她看著你工作、聊天、陪著你。",
-    "Character: AvatarSample (小光) / Alicia Solid © DWANGO — fetched on demand for personal use; see ATTRIBUTION.md.":
-        "角色：AvatarSample（小光）/ Alicia Solid © DWANGO——僅供個人使用、按需下載；詳見 ATTRIBUTION.md。",
+    "Character: AvatarSample (小光) © VRoid / Alicia Solid © DWANGO — downloaded separately; see ATTRIBUTION.md.":
+        "角色：AvatarSample（小光）© VRoid / Alicia Solid © DWANGO——另行下載；詳見 ATTRIBUTION.md。",
     "Rendering: three-vrm + three.js. Animations derived from Mixamo.":
         "渲染：three-vrm + three.js。動作動畫源自 Mixamo。",
     "Import VRM…": "匯入 VRM…",
@@ -1089,6 +1089,8 @@ git commit -m "i18n: zh-Hant strings for menu/workshop/mode/about"
 - **"Desktop Pet mode is not in this panel…"** 一段更新为：桌宠形态仍从 🐾/⌘⇧D/Character 菜单切换；**显示模式**（陪伴/静隐）从右键菜单即时切换，或 Settings → Mode（保存生效）。
 - 新增一小节 **Pet context menu**：`PetDragView.rightMouseDown` → NSMenu（Quiet Mode 勾选项 / Pet Workshop… / Settings… / Exit Pet Mode）；静隐 = `AppDelegate.enterQuiet/exitQuiet`，`display_mode` 持久化，通知在 `handleNotification` 头部 ack+drop（`isQuietMode`）。
 - **Project Structure** 的 Views/ 行补 `WorkshopView`。
+- **VRM Model 一节更新**：应用内 "Download Alicia Solid" 按钮已随 VRMModelPicker 移除——获取 Alicia 走 `scripts/download-model.sh` 或工坊手动导入；About 区的版权行已改为 "downloaded separately"。
+- **Setup wizard 已知限制**：pet 模式下手工 Settings 窗口的 "Re-run setup…" 按钮会关窗，但向导 sheet 无宿主（MainView 已拆）不呈现——记录为已知限制/后续项。
 
 **Step 2: Commit**
 
@@ -1119,6 +1121,7 @@ UI/AppKit 逻辑无单测覆盖，以下全链路手工验证（先 `xcodebuild 
 - [ ] Built-in 模型无删除按钮
 - [ ] 右键 → Settings… → Settings 窗口打开（手工窗口）；App 菜单 ⌘, 也开一次（scene 窗口）——两条路径无混淆、无状态冲突
 - [ ] Settings → Mode 切 Quiet + Save → 桌宠进入静隐；切回 Companion + Save → 恢复
+- [ ] 右键开 Settings → 关窗 → 右键切 Quiet → 重开 Settings（段控件应显示 Quiet）→ Save → 仍保持静隐（不回滚）
 - [ ] 窗口模式下 Settings 切 Quiet + Save → 无视觉变化；重新进桌宠 → 以静隐形态出现
 - [ ] Settings → About：图标/版本号/致谢显示正常；Character 区显示当前模型名，Manage Models… 呼出工坊
 - [ ] 系统语言切 zh-Hant → 所有新字符串为繁体中文；切 en → 英文
