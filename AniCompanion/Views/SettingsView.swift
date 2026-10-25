@@ -28,6 +28,7 @@ struct SettingsView: View {
     @State private var endpoints: [ChatBackend: String] = [:]
     @State private var apiKeys: [ChatBackend: String] = [:]
     @State private var ttsProvider: TTSProvider = .apple
+    @State private var kokoroVoice: String = KokoroVoice.default.rawValue
     @State private var blueMagpieTTSEndpoint: String = "http://127.0.0.1:8765"
     @State private var blueMagpieInferenceTimesteps: Int = 5
     @State private var openAITTSAPIKey: String = ""
@@ -410,11 +411,16 @@ struct SettingsView: View {
                                     }
                                 }
                             case .kokoro:
-                                // Provider fields (voicepack download row + voice picker) land
-                                // with the download UI task. The provider itself is already
-                                // functional: AppState.makeTTSService() checks install state
-                                // and falls back to Apple; the default voice applies meanwhile.
-                                EmptyView()
+                                // Tri-state voicepack card (download → progress → voice
+                                // picker). It observes the shared store, so an in-flight
+                                // download keeps its progress across close/reopen.
+                                VoicepackCard(store: .shared, voice: $kokoroVoice) {
+                                    // The download just finished — sample the new voice
+                                    // immediately, before Save. The card only exists while
+                                    // the picker is on .kokoro and the store reports the
+                                    // pack on disk, so the preview uses the Kokoro voice.
+                                    previewVoice()
+                                }
                             }
 
                             VStack(alignment: .leading, spacing: 8) {
@@ -951,12 +957,13 @@ struct SettingsView: View {
             )
         case .kokoro:
             // Mirror of AppState.makeTTSService()'s kokoro arm: preview the real voice
-            // when the pack is installed, else preview the Apple fallback she'd get.
+            // when the pack is installed (reading the working-copy voice, so picker
+            // changes preview without Save), else preview the Apple fallback she'd get.
             let store = VoicepackStore.shared
             if store.isInstalled {
                 return KokoroTTSService(
                     voicepackDirectory: store.kokoroDirectory,
-                    voice: KokoroVoice(rawValue: appState.kokoroVoice) ?? .default)
+                    voice: KokoroVoice(rawValue: kokoroVoice) ?? .default)
             }
             return AppleTTSService(voiceIdentifier: appleTTSVoiceIdentifier, rate: appleTTSRate)
         }
@@ -1095,6 +1102,7 @@ struct SettingsView: View {
         minimaxAPIKey = appState.minimaxAPIKey
         minimaxGroupID = appState.minimaxGroupID
         ttsProvider = TTSProvider(rawValue: appState.ttsProvider) ?? .apple
+        kokoroVoice = (KokoroVoice(rawValue: appState.kokoroVoice) ?? .default).rawValue
         blueMagpieTTSEndpoint = appState.blueMagpieTTSEndpoint
         blueMagpieInferenceTimesteps = appState.blueMagpieInferenceTimesteps
         openAITTSAPIKey = appState.openAITTSAPIKey
@@ -1153,7 +1161,14 @@ struct SettingsView: View {
         }
         appState.minimaxAPIKey = minimaxAPIKey
         appState.minimaxGroupID = minimaxGroupID
+        // Never-mute guard: Kokoro selected but the pack is gone from disk (e.g.
+        // hand-deleted after download, then Save) → fall back to Apple. Normal UI
+        // flow never lands here — the card only shows the picker once installed.
+        if ttsProvider == .kokoro && !VoicepackStore.shared.isInstalled {
+            ttsProvider = .apple
+        }
         appState.ttsProvider = ttsProvider.rawValue
+        appState.kokoroVoice = kokoroVoice
         appState.blueMagpieTTSEndpoint = blueMagpieTTSEndpoint
         appState.blueMagpieInferenceTimesteps = blueMagpieInferenceTimesteps
         appState.openAITTSAPIKey = openAITTSAPIKey
@@ -1346,6 +1361,114 @@ private struct LiveCaptionSessionStatus: View {
     private static func isPermissionError(_ error: Error) -> Bool {
         if case SystemAudioCaptureError.notAuthorized = error { return true }
         return false
+    }
+}
+
+// MARK: - VoicepackCard
+
+/// The Kokoro voicepack tri-state card: not installed (blurb + download) /
+/// downloading (progress + cancel) / installed (voice picker), plus a failed
+/// (message + retry) row. It observes the shared `VoicepackStore`, so an
+/// in-flight download keeps its progress across closing and reopening Settings.
+///
+/// Render truth is `store.isInstalled` (a live file check), not the published
+/// state: the store's init only checks the manifest, so a pack that's already
+/// on disk at launch — or whose files vanished after a `.installed` state —
+/// still renders the right branch.
+private struct VoicepackCard: View {
+
+    @ObservedObject var store: VoicepackStore
+    @Binding var voice: String
+    /// Fires once when a download transitions the store to `.installed` —
+    /// SettingsView hooks this to auto-preview the freshly downloaded voice.
+    var onInstalled: () -> Void
+
+    var body: some View {
+        Group {
+            if store.isInstalled {
+                voicePicker
+            } else {
+                switch store.state {
+                case .idle, .installed:
+                    // `.installed` with missing files = pack hand-deleted after
+                    // install — offer the download again.
+                    notInstalled
+                case .downloading(let fraction):
+                    downloading(fraction)
+                case .failed(let message):
+                    failed(message)
+                }
+            }
+        }
+        .onChange(of: store.state) { _, newState in
+            if case .installed = newState { onInstalled() }
+        }
+    }
+
+    /// The shipped voices, bound to the working copy (edit-then-save like every
+    /// other provider field).
+    private var voicePicker: some View {
+        SettingsField(label: "Voice") {
+            Picker("", selection: $voice) {
+                ForEach(KokoroVoice.allCases) { option in
+                    Text(option.displayName).tag(option.rawValue)
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+        }
+    }
+
+    private var notInstalled: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Gentle voicepack — Kokoro, on-device & offline. ~150MB, download once.")
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.5))
+                .fixedSize(horizontal: false, vertical: true)
+            Button {
+                store.install()
+            } label: {
+                Label("Download Voicepack", systemImage: "arrow.down.circle")
+            }
+            .disabled(!store.hasEnoughFreeSpace)
+            if !store.hasEnoughFreeSpace {
+                Text("Not enough free disk space (needs ~300MB free).")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.red.opacity(0.85))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func downloading(_ fraction: Double) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ProgressView(value: fraction)
+            HStack {
+                // The percent stays verbatim (never localized) — same convention
+                // as the live-caption model download row.
+                (Text("Downloading voicepack…") + Text(verbatim: " \(Int(fraction * 100))%"))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.6))
+                Spacer()
+                Button("Cancel") {
+                    store.cancelInstall()
+                }
+                .controlSize(.small)
+            }
+        }
+    }
+
+    private func failed(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // The store already localized the message.
+            Text(verbatim: message)
+                .font(.system(size: 11))
+                .foregroundStyle(.red.opacity(0.85))
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Retry") {
+                store.install()
+            }
+        }
     }
 }
 
