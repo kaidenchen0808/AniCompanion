@@ -34,7 +34,7 @@ final class VRMModelStoreTests: XCTestCase {
         withUnsafeBytes(of: &total) { glb.append(contentsOf: $0) }
         var jsonLen = UInt32(jsonData.count).littleEndian
         withUnsafeBytes(of: &jsonLen) { glb.append(contentsOf: $0) }
-        glb.append(contentsOf: [0x4E, 0x4F, 0x53, 0x4A])          // chunk type "JSON"
+        glb.append(contentsOf: [0x4A, 0x53, 0x4F, 0x4E])          // chunk type "JSON" (LSB-first)
         glb.append(jsonData)
         try glb.write(to: (dir ?? tempDir).appendingPathComponent(filename))
     }
@@ -63,6 +63,18 @@ final class VRMModelStoreTests: XCTestCase {
         XCTAssertFalse(try store.deleteModel(filename: VRMModelStore.defaultModelFilename))
     }
 
+    @MainActor
+    func testDelete_rejectsPathLikeFilename() throws {
+        // "" resolves to the user directory itself and would delete EVERY imported model;
+        // "../x.vrm" escapes the directory. Both must be no-ops that leave it all intact.
+        try writeMinimalVRM("Mine.vrm")
+        let store = makeStore()
+        XCTAssertFalse(try store.deleteModel(filename: ""))
+        XCTAssertFalse(try store.deleteModel(filename: "../x.vrm"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: tempDir.path))
+        XCTAssertTrue(store.availableModels().contains { $0.filename == "Mine.vrm" })
+    }
+
     // MARK: import (existing behavior, now under an injected dir)
 
     @MainActor
@@ -81,5 +93,8 @@ final class VRMModelStoreTests: XCTestCase {
         XCTAssertEqual(try store.importModel(from: src), "Src 2.vrm")
         XCTAssertEqual(try store.importModel(from: src), "Src 3.vrm")
         XCTAssertEqual(store.availableModels().filter { $0.filename.hasPrefix("Src") }.count, 3)
+        // The fixture's JSON chunk is genuinely parsed (valid magic + chunk type), finds no
+        // VRM meta title, and falls back to the filename stem as the display name.
+        XCTAssertEqual(store.availableModels().first { $0.filename == "Src.vrm" }?.displayName, "Src")
     }
 }

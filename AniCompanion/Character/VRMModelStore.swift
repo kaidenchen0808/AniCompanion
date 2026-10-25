@@ -39,7 +39,8 @@ final class VRMModelStore {
         self.userDirectoryOverride = userDirectoryOverride
     }
 
-    /// `~/Library/Application Support/AniCompanion/VRMModel/`, created on first access.
+    /// `~/Library/Application Support/AniCompanion/VRMModel/`, created on first access
+    /// (an injected override is used as-is, never created).
     var userModelsDirectory: URL {
         if let override = userDirectoryOverride { return override }
         let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -148,8 +149,11 @@ final class VRMModelStore {
     /// Remove a user-imported model from the writable directory. Built-in (bundle) models are
     /// never touched — only the user directory is consulted, so a built-in filename is a no-op.
     /// Returns false when the file isn't in the user directory; throws on filesystem errors.
+    /// Empty or path-like filenames (e.g. "", "../x.vrm") are rejected as no-ops — an empty
+    /// component would resolve to the directory itself and delete every imported model.
     @discardableResult
     func deleteModel(filename: String) throws -> Bool {
+        guard !filename.isEmpty, !filename.contains("/") else { return false }
         let url = userModelsDirectory.appendingPathComponent(filename)
         guard fm.fileExists(atPath: url.path) else { return false }
         try fm.removeItem(at: url)
