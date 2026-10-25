@@ -52,6 +52,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// Quiet form size (QQ-pet corner-sticker scale). Deliberately NOT configurable — the resting
     /// form is a fixed tiny size; her real size (`currentPetSize`) is restored on wake.
     private static let quietSize = NSSize(width: 80, height: 86)
+    /// Translucency of the resting form's webView (`exitQuiet` restores the literal 1).
+    private static let quietAlphaValue: CGFloat = 0.4
 
     /// Which side of her face the speech bubble currently sits on ("left"/"right"); flipped as
     /// she's dragged so it never runs off the screen edge. See `bubbleSide(for:)`.
@@ -107,6 +109,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 guard let self, let window = self.mainWindow, petMode != self.isPetActive else { return }
                 self.isPetActive = petMode
                 self.appState.launchInPetMode = petMode   // remember the explicit choice
+                if petMode, self.appState.displayMode == .quiet { window.alphaValue = 0 }   // quiet reveal rides the existing line below
                 petMode ? self.enterPet(window) : self.exitPet(window)
                 if petMode, self.appState.displayMode == .quiet { self.enterQuiet() }   // before the reveal below
                 if petMode { window.alphaValue = 1 }   // reveal only after enterPet reshaped the window
@@ -233,20 +236,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func enterQuiet() {
         guard let window = mainWindow, let webView = appState.characterManager.webView else { return }
         framePersistWork?.cancel()   // a pending debounced save must not observe the quiet frame
-        isQuietActive = true
+        isQuietActive = true   // before setFrame — windowDidMove must already be suppressed
         appState.conversationController?.isQuietMode = true   // drop pushed notifications (owned HERE)
         appState.conversationController?.cancel()          // stop mid-sentence TTS
         appState.characterManager.setSpeechText(nil)       // hide the bubble
         let visible = (window.screen ?? NSScreen.main)?.visibleFrame ?? window.frame
         window.setFrame(PetFramePlanner.bottomRight(size: Self.quietSize, in: visible), display: true)
-        webView.alphaValue = 0.4
+        webView.alphaValue = Self.quietAlphaValue
         refitScene(webView)
     }
 
     /// Wake back to the companion form: full opacity, remembered spot (or bottom-right).
     private func exitQuiet() {
         guard let window = mainWindow, let webView = appState.characterManager.webView else { return }
-        isQuietActive = false
+        isQuietActive = false   // before setFrame — the restored move is meant to re-persist
         appState.conversationController?.isQuietMode = false  // resume pushed notifications
         webView.alphaValue = 1
         window.setFrame(plannedPetFrame(for: window), display: true)
@@ -339,7 +342,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard isPetActive, let window = mainWindow else { return }
         framePersistWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            guard let self, self.isPetActive, window === self.mainWindow else { return }
+            guard let self, self.isPetActive, !self.isQuietActive, window === self.mainWindow else { return }
             self.appState.petFrameStorage = PetFramePlanner.encode(window.frame)
             self.appState.petAnchorScreen = window.screen.map { self.screenID($0) } ?? ""
         }
