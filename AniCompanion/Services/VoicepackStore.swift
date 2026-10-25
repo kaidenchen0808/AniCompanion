@@ -90,8 +90,9 @@ final class VoicepackStore: ObservableObject {
         }
         self.state = .idle
         // All stored properties initialized — computed properties are fair game now.
-        let manifestURL = kokoroDirectory.appendingPathComponent(VoicepackStore.manifestName)
-        if FileManager.default.fileExists(atPath: manifestURL.path) { state = .installed }
+        // Judge by the same key-file set as `isInstalled` (not just the manifest): a present
+        // manifest with hand-deleted files must not report installed.
+        if isInstalled { state = .installed }
     }
 
     // MARK: - Introspection
@@ -325,7 +326,10 @@ final class VoicepackStore: ObservableObject {
 /// completion), so no retain cycle. All delegate callbacks arrive on the session's serial
 /// delegate queue, making the one-shot `continuation` handoff safe. Progress hops back to
 /// the main actor via an isolated closure — the callbacks themselves are nonisolated.
-private final class DownloadDelegate: NSObject, URLSessionDownloadDelegate {
+// @unchecked Sendable: the mutable `continuation` is only touched on the serial delegate
+// queue (checked-then-cleared in `finish()`), but the protocol now inherits Sendable and a
+// mutable stored property trips the strict-concurrency warning.
+private final class DownloadDelegate: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
 
     let destination: URL
     let progressHandler: @MainActor @Sendable (Double) -> Void
