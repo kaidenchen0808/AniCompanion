@@ -6,7 +6,9 @@
 
 **Architecture:** 全部改动在渲染端 Swift 层。新增 `DisplayMode` 状态（`AppState.displayMode` @Published，`AppDelegate` sink 应用窗口形态，沿 `petMode` 的现成模式）；右键菜单挂 `PetDragView.rightMouseDown` → AppKit `NSMenu`（桌宠模式无 SwiftUI 树）；工坊是 AppDelegate 手工创建的 `NSWindow` + `NSHostingController(WorkshopView)`（pet 模式会拆掉 MainView，SwiftUI `openWindow` 无锚点，手工窗口与主窗口同一套路）；模型发现/导入复用 `VRMModelStore`，只新增 `deleteModel` + 可注入目录（测试用）。
 
-**Tech Stack:** Swift 6 / AppKit NSMenu + NSWindow / SwiftUI / XcodeGen（`project.yml` 是工程唯一真源，`.xcodeproj` 不入库；target sources 是目录通配，新 `.swift` 文件自动包含，**无需改 project.yml**）/ XCTest / String Catalog（`Localizable.xcstrings`）。
+**Tech Stack:** Swift 6 / AppKit NSMenu + NSWindow / SwiftUI / XcodeGen（`project.yml` 是工程唯一真源，`.xcodeproj` 不入库）/ XCTest / String Catalog（`Localizable.xcstrings`）。
+
+⚠️ **XcodeGen 陷阱（Task 1 实测确认）**：target sources 是 generate 时的**快照展开**，不是运行时通配。**每新增一个 `.swift` 文件后必须重跑 `xcodegen generate`**，否则新文件静默不进 target——`xcodebuild test` 依旧全绿但新测试缺席（假绿灯）。`project.yml` 本身无需改动，重跑 generate 零 git 影响（pbxproj 被 ignore）。
 
 **设计文档:** 根仓库 `docs/plans/2026-10-25-rightclick-workshop-design.md`（需求背景与决策记录）。
 
@@ -151,7 +153,7 @@ git commit -m "feat: DisplayMode enum + quiet-mode notification suppression"
 
 **Step 1: 写失败的测试**
 
-`AniCompanionTests/VRMModelStoreTests.swift`：
+`AniCompanionTests/VRMModelStoreTests.swift`（新文件 → 写完先 `xcodegen generate` 再跑测试，见顶部陷阱）：
 
 ```swift
 import XCTest
@@ -326,13 +328,15 @@ private static let quietSize = NSSize(width: 80, height: 86)
 // Apply display-mode changes to the window (quiet ⇄ companion). Mirrors the petMode sink:
 // always persist the choice, but only reshape the window while the pet is actually active —
 // a windowed save persists and takes effect on the next enter-pet.
+// NOTE: `conversationController.isQuietMode` is owned by enterQuiet()/exitQuiet() below —
+// NOT set here. The sink's guard would skip the flag on launch-into-quiet (the petMode sink
+// calls enterQuiet() directly), and exitPet must clear it on the way to windowed mode.
 quietCancellable = appState.$displayMode
     .receive(on: RunLoop.main)
     .sink { [weak self] mode in
         guard let self else { return }
         self.appState.displayModeStorage = mode.rawValue
         guard self.isPetActive, (mode == .quiet) != self.isQuietActive else { return }
-        self.appState.conversationController?.isQuietMode = (mode == .quiet)
         mode == .quiet ? self.enterQuiet() : self.exitQuiet()
     }
 ```
@@ -356,6 +360,7 @@ if petMode { window.alphaValue = 1 }
 private func enterQuiet() {
     guard let window = mainWindow, let webView = appState.characterManager.webView else { return }
     isQuietActive = true
+    appState.conversationController?.isQuietMode = true   // drop pushed notifications (owned HERE)
     appState.conversationController?.cancel()          // stop mid-sentence TTS
     appState.characterManager.setSpeechText(nil)       // hide the bubble
     let visible = (window.screen ?? NSScreen.main)?.visibleFrame ?? window.frame
@@ -368,6 +373,7 @@ private func enterQuiet() {
 private func exitQuiet() {
     guard let window = mainWindow, let webView = appState.characterManager.webView else { return }
     isQuietActive = false
+    appState.conversationController?.isQuietMode = false  // resume pushed notifications
     webView.alphaValue = 1
     window.setFrame(plannedPetFrame(for: window), display: true)
     refitScene(webView)
@@ -389,9 +395,15 @@ private func exitQuiet() {
   if isQuietActive {
       appState.characterManager.webView?.alphaValue = 1
       isQuietActive = false
+      appState.conversationController?.isQuietMode = false   // windowed mode must not stay muted
   }
   ```
-  （静隐中双击退出 → windowed 角色不能停留在 40% 透明。`displayMode` 保持 `.quiet`——下次进桌宠回到静隐，符合"她还在休息"的语义。）
+  （静隐中双击退出 → windowed 角色不能停留在 40% 透明、通知不能持续被静默。`displayMode` 保持 `.quiet`——下次进桌宠回到静隐，符合"她还在休息"的语义。）
+
+**Step 2b: 顺手小修（来自 Task 1 code review）**
+
+- `AppState.swift`：给 `DisplayMode` 加 `static let storageKey = "display_mode"` 常量（extension 形式），把 init 闭包与 `@AppStorage` 的两处字面量换上去（项目惯例：`TTSProvider.storageKey` 等）。
+- `ConversationController.swift` 静默分支的注释把 "ack (so the backend doesn't retry)" 修正为 "ack for protocol symmetry (v1 companion-layer is at-most-once; the send itself is a no-op on plain gateways)"。
 
 **Step 3: 构建验证**
 
