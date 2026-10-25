@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
-# Downloads the default VRM character model (Alicia Solid / ニコニ立体ちゃん) into
-# AniCompanion/Resources/VRMModel/ so the app has a character to render.
+# Downloads the optional Alicia Solid VRM (ニコニ立体ちゃん) into
+# AniCompanion/Resources/VRMModel/ so she appears in the model list. The default character
+# (小光 / AvatarSample_A.vrm) is already committed and bundled.
 #
 # The model is NOT committed to this repository and is NOT bundled in any release: its
 # license (Dwango's terms, not MIT) does NOT permit redistributing the original model file.

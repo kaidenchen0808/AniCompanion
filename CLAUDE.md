@@ -43,7 +43,7 @@ AniCompanion/
 │   ├── Models/          # Data models (ChatMessage, Emotion, ConversationHistory, AnimationClip)
 │   └── Resources/       # Persona/<lang>/ (system_prompt.txt + proactive.json), Localizable.xcstrings, VRMModel/, Animations/ (JSON keyframe clips), ThreeVRM/ (HTML+JS scene)
 ├── Tools/               # Blender animation export + app-icon generator
-├── scripts/             # download-model.sh (fetches the default VRM)
+├── scripts/             # download-model.sh (fetches the optional Alicia Solid VRM)
 ├── project.yml          # XcodeGen project spec
 └── AniCompanion.xcodeproj
 ```
@@ -57,7 +57,7 @@ xcodegen generate
 # Build
 xcodebuild -project AniCompanion.xcodeproj -scheme AniCompanion -destination 'platform=macOS' build
 
-# Fetch the default VRM model (not committed — see ATTRIBUTION.md)
+# Fetch the optional Alicia Solid VRM (not committed — see ATTRIBUTION.md; the default, 小光, is)
 ./scripts/download-model.sh
 
 # Build a signed + notarized DMG for distribution (Developer ID cert + notarytool profile "AniCompanion")
@@ -384,9 +384,12 @@ quiet) switches instantly from the pet's right-click menu, or here via **Mode** 
   scroll/pinch resize is off and drags neither flip the bubble nor persist the frame
   (`windowDidMove`/`scalePet`/the debounced save all guard on `isQuietActive`) — so waking returns
   to her remembered companion spot and a stray quiet frame never pollutes `petFrameStorage`.
-  Double-click still exits pet mode: opacity + notification mute are restored, but `displayMode`
-  stays `.quiet` ("still resting") so the next pet entry comes back quiet. Launch-into-quiet and
-  windowed→pet both reveal the small form directly (no full-size flash).
+  Exiting pet mode while quiet splits by path: the menu (**Exit Pet Mode** / ⌘⇧D) keeps
+  `displayMode` at `.quiet` ("still resting" — the next pet entry comes back quiet; `exitPet`
+  restores opacity + clears the mute), while a **double-click wakes first** — the first click
+  flips to `.companion` (and persists), so by the second click's `exitPet` the next pet entry is
+  the companion form. Launch-into-quiet and windowed→pet both reveal the small form directly (no
+  full-size flash).
 - **Notification suppression is `ConversationController.isQuietMode`, owned by
   `enterQuiet`/`exitQuiet`** — pushed notifications (poll / WebSocket `say` frames) are acked +
   dropped at the head of `handleNotification` (protocol symmetry; no replay backlog on wake).
