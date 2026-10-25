@@ -34,6 +34,10 @@ final class ThreeVRMCharacterManager: NSObject, ObservableObject, CharacterContr
     /// Whether the three-vrm HTML/JS scene has finished loading.
     private var isWebViewReady = false
 
+    /// Kicks true once the scene HTML finished loading — AppDelegate awaits this to enter
+    /// pet mode at launch (pet mode needs the webView to exist).
+    @Published private(set) var isSceneReady = false
+
     /// Whether Desktop Pet mode is active. Gates the speech bubble (set by `AppDelegate`),
     /// so `setSpeechText` only renders the bubble when she's living on the desktop.
     var petModeActive: Bool = false
@@ -121,6 +125,7 @@ final class ThreeVRMCharacterManager: NSObject, ObservableObject, CharacterContr
     /// Called by ThreeVRMRenderView once the HTML page has finished loading.
     func onWebViewReady() {
         isWebViewReady = true
+        isSceneReady = true
         loadPendingModelIfPossible()
     }
 
