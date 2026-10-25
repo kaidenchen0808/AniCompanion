@@ -826,6 +826,8 @@ git commit -m "feat: pet workshop — import/switch/delete VRM models (instant a
 
 SettingsView 的 Cancel/Save 按钮调 `@Environment(\.dismiss)`——在 MainView 的 sheet 里有效，但在 AppDelegate 手工建的 settingsWindow（Task 4 修正版 openSettings）里是 no-op，用户点 Save 后窗口不关。处理：给 SettingsView 加一个可选闭包参数 `var onClose: (() -> Void)? = nil`，Cancel/Save 动作在 `dismiss()` 之外追加 `onClose?()`（sheet 场景 onClose 为 nil 行为不变；手工窗口场景由 openSettings 处传入 `{ [weak settingsWindow] in settingsWindow?.performClose(nil) }`——注意 performClose 会走 windowShouldClose，需确认对非 mainWindow 返回 true 放行；workshopWindow delegate 未设不受影响）。若实现中发现更简洁的做法（如 NSHostingController 的 dismiss 桥接），可替换，但两个场景（sheet + 手工窗口）都必须"保存后关窗"。
 
+**另一条 Task 4 review 观察（顺手处理）**：App 菜单 ⌘, 仍开 SwiftUI Settings scene 窗口，右键菜单开手工 settingsWindow——同一会话可能同时存在两个 SettingsView 实例（状态无冲突，仅视觉重复）。处理：`AniCompanionApp.swift` 的 `Settings { SettingsView() }` scene 保留（⌘, 是系统惯例入口），但 `openSettings()` 在建手工窗口前把标题/内容与 scene 窗口统一即可接受；或最简——manual checklist 加一条"两条路径各开一次确认无混淆"，代码不动。实现时按最简处理。
+
 **Step 1: 新增本地状态与数据流**
 
 @State 区（`vrmModelFilename` 声明处，:52）替换为：
@@ -1112,7 +1114,7 @@ UI/AppKit 逻辑无单测覆盖，以下全链路手工验证（先 `xcodebuild 
 - [ ] 删除非当前模型 → 确认框 → 从列表消失
 - [ ] 删除当前模型 → 先切回 小光 再删除，无残影/报错
 - [ ] Built-in 模型无删除按钮
-- [ ] 右键 → Settings… → Settings 窗口打开（⌘, 仍可用）
+- [ ] 右键 → Settings… → Settings 窗口打开（手工窗口）；App 菜单 ⌘, 也开一次（scene 窗口）——两条路径无混淆、无状态冲突
 - [ ] Settings → Mode 切 Quiet + Save → 桌宠进入静隐；切回 Companion + Save → 恢复
 - [ ] 窗口模式下 Settings 切 Quiet + Save → 无视觉变化；重新进桌宠 → 以静隐形态出现
 - [ ] Settings → About：图标/版本号/致谢显示正常；Character 区显示当前模型名，Manage Models… 呼出工坊
