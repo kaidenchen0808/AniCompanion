@@ -573,7 +573,16 @@ git commit -m "feat: pet right-click context menu + workshop window shell"
 
 **Files:**
 - Modify: `AniCompanion/App/AppState.swift`
+- Modify: `AniCompanion/Character/VRMModelStore.swift`
 - Rewrite: `AniCompanion/Views/WorkshopView.swift`
+
+**Step 0: 顺手小修（来自 Task 2 review）**
+
+`VRMModelStore.deleteModel` 的 guard 追加两个子句，封死 `"."` / `".."`（不含斜杠但 `removeItem` 会删目录/父目录）：
+
+```swift
+guard !filename.isEmpty, !filename.contains("/"), filename != ".", filename != ".." else { return false }
+```
 
 **Step 1: AppState.selectModel（live 切换，不重建服务）**
 
