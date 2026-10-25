@@ -57,3 +57,6 @@ scripts/dev-signing-identity
 # Release build + DMG artifacts (scripts/build-dmg.sh)
 .build-release/
 AniCompanion-*.dmg
+
+# Git worktrees
+.worktrees/
