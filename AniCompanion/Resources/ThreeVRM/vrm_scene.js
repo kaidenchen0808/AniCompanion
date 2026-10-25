@@ -42,7 +42,12 @@ window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    // QQ-pet small form: swap the side bubble for an above-head banner bubble.
+    document.body.classList.toggle('small-pet', window.innerWidth < 360);
 });
+// The listener above only fires on real resize events (initial sizing at the top of this
+// module bypasses it), so run the same check once for the initial load.
+document.body.classList.toggle('small-pet', window.innerWidth < 360);
 
 // ============================================================
 // Speech bubble (Desktop Pet mode) — driven from Swift via window.showBubble / hideBubble

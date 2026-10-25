@@ -55,6 +55,19 @@
     border-right: 0;
     border-left: 7px solid rgba(22, 20, 32, 0.85);
   }
+  /* Small pet window (QQ-pet size): the side bubble would be unreadably narrow, so the
+     bubble spans above her head instead. Toggled by the resize handler (innerWidth < 360). */
+  body.small-pet #bubble {
+    left: 6px;
+    right: 6px;
+    max-width: none;
+    max-height: 30%;
+    font-size: 13px;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+  }
+  body.small-pet #bubble::after { display: none; }
 </style>
 <script type="importmap">
 {
