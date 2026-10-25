@@ -409,6 +409,12 @@ struct SettingsView: View {
                                             .frame(width: 48, alignment: .trailing)
                                     }
                                 }
+                            case .kokoro:
+                                // Provider fields (voicepack download row + voice picker) land
+                                // with the download UI task. The provider itself is already
+                                // functional: AppState.makeTTSService() checks install state
+                                // and falls back to Apple; the default voice applies meanwhile.
+                                EmptyView()
                             }
 
                             VStack(alignment: .leading, spacing: 8) {
@@ -943,6 +949,16 @@ struct SettingsView: View {
                 instructions: openAITTSInstructions,
                 speed: openAITTSSpeed
             )
+        case .kokoro:
+            // Mirror of AppState.makeTTSService()'s kokoro arm: preview the real voice
+            // when the pack is installed, else preview the Apple fallback she'd get.
+            let store = VoicepackStore.shared
+            if store.isInstalled {
+                return KokoroTTSService(
+                    voicepackDirectory: store.kokoroDirectory,
+                    voice: KokoroVoice(rawValue: appState.kokoroVoice) ?? .default)
+            }
+            return AppleTTSService(voiceIdentifier: appleTTSVoiceIdentifier, rate: appleTTSRate)
         }
     }
 

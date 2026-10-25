@@ -64,6 +64,10 @@ final class AppState: ObservableObject {
 
     @AppStorage("apple_tts_rate") var appleTTSRate: Double = AppleTTSService.defaultRate
 
+    /// Kokoro on-device TTS: selected voice (rawValue of `KokoroVoice`). Ignored when
+    /// the voicepack is not installed — `makeTTSService()` falls back to Apple.
+    @AppStorage("tts_kokoro_voice") var kokoroVoice: String = KokoroVoice.default.rawValue
+
     /// Which agent backend to talk to. See `ChatBackend`. Each backend stores its own
     /// endpoint + key under per-backend keys (see `ChatBackend.savedEndpoint()` /
     /// `savedAPIKey()`), so switching backends swaps the connection rather than sharing it.
@@ -420,6 +424,15 @@ final class AppState: ObservableObject {
                 instructions: openAITTSInstructions,
                 speed: openAITTSSpeed
             )
+        case .kokoro:
+            let store = VoicepackStore.shared
+            if store.isInstalled {
+                return KokoroTTSService(
+                    voicepackDirectory: store.kokoroDirectory,
+                    voice: KokoroVoice(rawValue: kokoroVoice) ?? .default)
+            }
+            // Not installed (e.g. deleted after selecting) — fall back to Apple so she's never mute.
+            return AppleTTSService(voiceIdentifier: appleTTSVoiceIdentifier, rate: appleTTSRate)
         }
     }
 

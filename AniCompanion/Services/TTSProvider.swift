@@ -5,6 +5,7 @@ enum TTSProvider: String, CaseIterable, Identifiable, Sendable {
     case miniMax
     case blueMagpie
     case openAI
+    case kokoro
 
     var id: String { rawValue }
 
@@ -16,6 +17,7 @@ enum TTSProvider: String, CaseIterable, Identifiable, Sendable {
         case .miniMax: return "MiniMax"
         case .blueMagpie: return "BlueMagpie"
         case .openAI: return "OpenAI"
+        case .kokoro: return "Kokoro (on-device, HQ)"
         }
     }
 
