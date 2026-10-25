@@ -154,6 +154,18 @@ final class AppState: ObservableObject {
     /// Whether the chat backend is currently connected/reachable.
     @Published var isConnected: Bool = false
 
+    // MARK: Desktop Pet persistence (launch-as-pet + remembered size/position)
+
+    /// Launch straight into pet form. Default true (QQ-pet mental model: she's always there);
+    /// an explicit switch to windowed writes false and is remembered.
+    @AppStorage("launch_in_pet_mode") var launchInPetMode: Bool = true
+    /// Last pet window frame, encoded "x,y,w,h" via PetFramePlanner.encode/decode.
+    @AppStorage("pet_frame") var petFrameStorage: String = ""
+    /// deviceIdentifier of the screen she was last on (nil/"" = primary bottom-right).
+    @AppStorage("pet_anchor_screen") var petAnchorScreen: String = ""
+    /// Last pet size, encoded like petFrame (pet width+height).
+    @AppStorage("pet_size") var petSizeStorage: String = ""
+
     /// Desktop pet mode: the window becomes a borderless, transparent, always-on-top,
     /// draggable character with no chat panel. Toggled from the Character menu (⌘⇧D).
     @Published var petMode: Bool = false
