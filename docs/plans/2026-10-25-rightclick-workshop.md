@@ -1040,6 +1040,7 @@ translations = {
     "Couldn't import the model": "無法匯入模型",
     "Couldn't delete the model": "無法刪除模型",
     "Delete “%@”?": "刪除「%@」？",
+    "Not a valid VRM (GLB) file.": "不是有效的 VRM（GLB）檔案。",
 }
 
 strings = catalog.setdefault("strings", {})
