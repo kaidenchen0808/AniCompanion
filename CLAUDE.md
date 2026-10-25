@@ -70,9 +70,11 @@ bash scripts/build-dmg.sh
 ./scripts/reset-onboarding.sh
 
 # Build the Kokoro voicepack Release asset (product owner; --publish uploads it via gh).
-# Pins mtimes so the same source tarball re-packs bit-identically, then prints the sha256/size
-# to paste into VoicepackStore — v1 is already backfilled; a re-pack needs re-pasting.
-bash scripts/make-voicepack.sh [--publish]
+# Builds the voicepack zip + prints the sha256/size to paste into VoicepackStore.
+# A re-pack is NOT bit-identical (zip entry order is unstable) — the release flow is:
+# build once → paste THAT zip's hash → `--publish-only` uploads that same zip. --publish
+# re-packs first (new hash — must re-paste).
+bash scripts/make-voicepack.sh [--publish | --publish-only]
 
 # Open in Xcode
 open AniCompanion.xcodeproj
@@ -509,7 +511,7 @@ it answers from the model.
 - **zip mtime breaks voicepack reproducibility**: zip archives record per-file mtimes, so
   re-packing the same source tarball produced different bytes → the sha256 hardcoded in
   `VoicepackStore.expectedSHA256` wouldn't match a rebuilt asset. `make-voicepack.sh` pins every
-  file to one fixed mtime, making the pack bit-identical across reruns of the same tarball.
+  file to one fixed mtime — but the pack is still NOT bit-identical across reruns (zip entry order follows directory traversal, which is unstable). The release flow is therefore build-once → backfill that zip's sha256 → `--publish-only` uploads that exact zip; never re-pack between backfill and upload.
 
 ## Status
 

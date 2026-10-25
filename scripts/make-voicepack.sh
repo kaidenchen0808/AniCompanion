@@ -34,7 +34,11 @@ RELEASE_TAG="voicepack-kokoro-v1"
 PUBLISH_REPO="catsmice/AniCompanion"
 
 PUBLISH=0
-[[ "${1:-}" == "--publish" ]] && PUBLISH=1
+PUBLISH_ONLY=0
+case "${1:-}" in
+    --publish) PUBLISH=1 ;;
+    --publish-only) PUBLISH_ONLY=1 ;;   # upload the existing dist/ zip WITHOUT re-packing
+esac
 
 step() { printf '\n\033[1;36m==> %s\033[0m\n' "$1"; }
 die()  { printf '\033[1;31mERROR: %s\033[0m\n' "$1" >&2; exit 1; }
@@ -47,6 +51,28 @@ fi
 
 mkdir -p "$DIST"
 TARBALL="$DIST/$MODEL_ASSET"
+
+# Publish-only short-circuit: upload the zip currently in dist/ as-is. Use this
+# after backfilling VoicepackStore with that zip's sha256 — never re-pack between
+# backfill and upload (a re-pack produces a different hash).
+publish_release() {
+    step "Publish to $PUBLISH_REPO release $RELEASE_TAG"
+    if gh release view "$RELEASE_TAG" --repo "$PUBLISH_REPO" > /dev/null 2>&1; then
+        gh release upload "$RELEASE_TAG" "$DIST/$ZIP_NAME" "$DIST/$ZIP_NAME.sha256" \
+            --clobber --repo "$PUBLISH_REPO"
+    else
+        gh release create "$RELEASE_TAG" "$DIST/$ZIP_NAME" "$DIST/$ZIP_NAME.sha256" \
+            --repo "$PUBLISH_REPO" \
+            --title "Kokoro voicepack v1" \
+            --notes "Kokoro int8 multi-lang v1.1 (zh voices) — on-device TTS voicepack for AniCompanion. sha256 in the .sha256 asset."
+    fi
+    echo "Published. Verify in-app install (Settings → TTS → Kokoro → Download Voicepack)."
+}
+if [[ "$PUBLISH_ONLY" == 1 ]]; then
+    [[ -f "$DIST/$ZIP_NAME" ]] || die "dist/$ZIP_NAME not built yet — run without --publish-only first"
+    publish_release
+    exit 0
+fi
 
 # 1. Download with curl (gh release download produced corrupted files once — Task 1
 #    lesson). Cached: an existing complete tarball is reused; pass --refresh to redownload.
@@ -110,9 +136,11 @@ if [[ -f "$SRC/lexicon-us-en.txt" ]]; then
 fi
 cp -Rp "$SRC/espeak-ng-data" "$PACK/espeak-ng-data"
 
-# Pin mtimes: the zip records them, so without this a rerun produces different
-# bytes → a different sha256 than the one pasted into VoicepackStore. One fixed
-# timestamp makes the build reproducible from the same source tarball.
+# Pin mtimes (the zip records them). NOTE: a re-pack is still NOT bit-identical —
+# zip entry order follows directory traversal, which is not stable across runs.
+# The correct release flow is: build ONCE → upload THAT zip (--publish-only) →
+# paste THAT zip's sha256 into VoicepackStore. Never re-pack between backfill and
+# upload.
 find "$PACK" -exec touch -t 202501010000.00 {} +
 
 # Sanity: everything VoicepackStore.keyFileNames expects must be present.
@@ -137,19 +165,11 @@ echo "    nonisolated static let expectedSHA256 = \"$SHA\""
 echo "    nonisolated static let expectedSizeBytes: Int64 = $SIZE"
 echo "====================================================================="
 
-# 6. Publish (product owner decision — never run by CI/agents).
+# 6. Publish (product owner decision — never run by CI/agents). NOTE: --publish
+# re-packs first (new sha256 — must re-backfill); prefer the build-once flow:
+# plain run → backfill → --publish-only.
 if [[ "$PUBLISH" == 1 ]]; then
-    step "Publish to $PUBLISH_REPO release $RELEASE_TAG"
-    if gh release view "$RELEASE_TAG" --repo "$PUBLISH_REPO" > /dev/null 2>&1; then
-        gh release upload "$RELEASE_TAG" "$DIST/$ZIP_NAME" "$DIST/$ZIP_NAME.sha256" \
-            --clobber --repo "$PUBLISH_REPO"
-    else
-        gh release create "$RELEASE_TAG" "$DIST/$ZIP_NAME" "$DIST/$ZIP_NAME.sha256" \
-            --repo "$PUBLISH_REPO" \
-            --title "Kokoro voicepack v1" \
-            --notes "Kokoro int8 multi-lang v1.1 (zh voices) — on-device TTS voicepack for AniCompanion. sha256 in the .sha256 asset."
-    fi
-    echo "Published. Verify in-app install (Settings → TTS → Kokoro → Download Voicepack)."
+    publish_release
 else
     echo "Dry run only. Re-run with --publish to upload."
 fi
