@@ -49,6 +49,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var isQuietActive = false
     private var quietCancellable: AnyCancellable?
 
+    /// The Pet Workshop window (model import/switch/delete). Hand-built here because pet mode
+    /// tears down MainView, leaving SwiftUI's `openWindow` no scene anchor to act on.
+    private var workshopWindow: NSWindow?
+
     /// Quiet form size (QQ-pet corner-sticker scale). Deliberately NOT configurable — the resting
     /// form is a fixed tiny size; her real size (`currentPetSize`) is restored on wake.
     private static let quietSize = NSSize(width: 80, height: 86)
@@ -212,6 +216,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let jsY = webView.bounds.height - point.y
             webView.evaluateJavaScript("window.handleTap && window.handleTap(\(jsX), \(jsY))", completionHandler: nil)
         }
+        drag.menuProvider = { [weak self] in
+            guard let self else { return NSMenu() }   // keep the non-optional NSMenu return
+            return self.buildPetMenu()
+        }
         drag.autoresizingMask = [.width, .height]
         container.addSubview(drag)                        // on top: click = touch her, drag = move window, double-click exits, scroll/pinch resizes
 
@@ -312,6 +320,80 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         // Re-fit at the windowed size (she's centered in both modes — nothing to un-pan).
         if let webView { refitScene(webView) }
+    }
+
+    // MARK: - Pet context menu & auxiliary windows
+
+    private func buildPetMenu() -> NSMenu {
+        let menu = NSMenu()
+
+        let quiet = NSMenuItem(
+            title: String(localized: "Quiet Mode", comment: "Context menu: rest at the corner, no speech"),
+            action: #selector(toggleQuietMode), keyEquivalent: ""
+        )
+        quiet.target = self
+        quiet.state = appState.displayMode == .quiet ? .on : .off
+        menu.addItem(quiet)
+
+        menu.addItem(.separator())
+
+        let workshop = NSMenuItem(
+            title: String(localized: "Pet Workshop…", comment: "Context menu: open the model workshop"),
+            action: #selector(showWorkshop), keyEquivalent: ""
+        )
+        workshop.target = self
+        menu.addItem(workshop)
+
+        let settings = NSMenuItem(
+            title: String(localized: "Settings…", comment: "Context menu: open the settings window"),
+            action: #selector(openSettings), keyEquivalent: ","
+        )
+        settings.target = self
+        settings.keyEquivalentModifierMask = .command
+        menu.addItem(settings)
+
+        menu.addItem(.separator())
+
+        let exit = NSMenuItem(
+            title: String(localized: "Exit Pet Mode", comment: "Context menu: back to the windowed app"),
+            action: #selector(exitPetFromMenu), keyEquivalent: ""
+        )
+        exit.target = self
+        menu.addItem(exit)
+
+        return menu
+    }
+
+    @objc private func toggleQuietMode() {
+        appState.displayMode = appState.displayMode == .quiet ? .companion : .quiet
+    }
+
+    @objc private func exitPetFromMenu() {
+        appState.petMode = false
+    }
+
+    @objc func showWorkshop() {
+        // Pet mode is a nonactivating panel — bring the app forward so the workshop window
+        // can take focus.
+        NSApp.activate(ignoringOtherApps: true)
+        if workshopWindow == nil {
+            let vc = NSHostingController(rootView: WorkshopView().environmentObject(appState))
+            let w = NSWindow(contentViewController: vc)
+            w.title = String(localized: "Pet Workshop", comment: "Workshop window title")
+            w.styleMask = [.titled, .closable, .miniaturizable]
+            w.isReleasedWhenClosed = false
+            w.setContentSize(NSSize(width: 520, height: 420))
+            w.center()
+            workshopWindow = w
+        }
+        workshopWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    @objc private func openSettings() {
+        NSApp.activate(ignoringOtherApps: true)
+        // The Settings window belongs to the SwiftUI Settings scene (⌘,); this AppKit action
+        // opens it without needing a SwiftUI anchor (which pet mode tears down).
+        NSApp.sendAction(NSSelectorFromString("showSettingsWindow:"), to: nil, from: nil)
     }
 
     /// Which side of her face to place the speech bubble — the side with more room between her

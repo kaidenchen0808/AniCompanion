@@ -20,6 +20,9 @@ final class PetDragView: NSView {
     /// Single click (no drag) at a window coordinate — AppDelegate forwards it into the
     /// three.js scene for the touch raycast.
     var onTap: ((NSPoint) -> Void)?
+    /// Right-click context menu provider. AppDelegate builds the NSMenu (it owns mode/window
+    /// state); the view only knows how to present it.
+    var menuProvider: (() -> NSMenu)?
 
     private var pendingDragEvent: NSEvent?
     private var dragOrigin: NSPoint?
@@ -66,5 +69,12 @@ final class PetDragView: NSView {
     /// Trackpad pinch resizes the pet.
     override func magnify(with event: NSEvent) {
         onScale?(1 + event.magnification)
+    }
+
+    /// Right-click → the pet context menu (quiet-mode toggle / workshop / settings / exit).
+    override func rightMouseDown(with event: NSEvent) {
+        if let menu = menuProvider?() {
+            NSMenu.popUpContextMenu(menu, with: event, for: self)
+        }
     }
 }
