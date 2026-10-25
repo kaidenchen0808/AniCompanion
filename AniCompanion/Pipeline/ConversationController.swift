@@ -505,6 +505,9 @@ final class ConversationController: ObservableObject {
 
     /// Send a proactive message by injecting a hidden system instruction.
     func sendProactiveMessage(prompt: String? = nil) async {
+        // Quiet mode: she's resting — no proactive speech either (mirrors handleNotification).
+        if isQuietMode { return }
+
         guard !isProcessing else {
             Log.pipeline("[Pipeline] sendProactiveMessage ignored — already processing")
             return

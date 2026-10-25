@@ -35,7 +35,7 @@ enum VRMModelStoreError: LocalizedError {
 /// Locates VRM model files across the two places they can live:
 ///   • the **read-only app bundle** (`Resources/VRMModel/`) — the shipped default (AvatarSample_A), and
 ///   • a **user-writable directory** (`~/Library/Application Support/AniCompanion/VRMModel/`) — models
-///     the user imports ("Add your own VRM…") or downloads (e.g. Alicia).
+///     the user imports (via the Pet Workshop) or downloads (e.g. Alicia).
 ///
 /// The shipped `.app` bundle is read-only, so any model the user adds after install must live in the
 /// writable directory; this store is the single place that knows about both.
