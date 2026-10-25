@@ -224,6 +224,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func exitPet(_ window: NSWindow) {
+        framePersistWork?.cancel()   // a pending debounced save must not observe the windowed frame
         appState.characterManager.setSpeechText(nil)      // hide bubble (while still active)
         appState.characterManager.petModeActive = false
 
@@ -280,7 +281,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard isPetActive, let window = mainWindow else { return }
         framePersistWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            guard let self else { return }
+            guard let self, self.isPetActive, window === self.mainWindow else { return }
             self.appState.petFrameStorage = PetFramePlanner.encode(window.frame)
             self.appState.petAnchorScreen = window.screen.map { self.screenID($0) } ?? ""
         }
