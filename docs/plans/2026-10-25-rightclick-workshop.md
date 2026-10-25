@@ -530,12 +530,25 @@ private func buildPetMenu() -> NSMenu {
 }
 
 @objc private func openSettings() {
+    // Same story as the workshop window: pet mode tears down the SwiftUI tree, so the
+    // Settings scene's window is unreachable from here (and Apple removed the
+    // showSettingsWindow: action in macOS 14 anyway). Host SettingsView ourselves.
     NSApp.activate(ignoringOtherApps: true)
-    // The Settings window belongs to the SwiftUI Settings scene (⌘,); this AppKit action
-    // opens it without needing a SwiftUI anchor (which pet mode tears down).
-    NSApp.sendAction(NSSelectorFromString("showSettingsWindow:"), to: nil, from: nil)
+    if settingsWindow == nil {
+        let vc = NSHostingController(rootView: SettingsView().environmentObject(appState))
+        let w = NSWindow(contentViewController: vc)
+        w.title = String(localized: "Settings", comment: "Settings window title")
+        w.styleMask = [.titled, .closable, .miniaturizable]
+        w.isReleasedWhenClosed = false
+        w.setContentSize(NSSize(width: 480, height: 640))   // SettingsView's own fixed frame
+        w.center()
+        settingsWindow = w
+    }
+    settingsWindow?.makeKeyAndOrderFront(nil)
 }
 ```
+
+⚠️ 计划缺陷修正（Task 4 review 发现）：原计划此处用 `NSApp.sendAction(NSSelectorFromString("showSettingsWindow:"))`——该 action 在 macOS 14+ 已被 Apple 移除（SwiftUI 打日志拒绝），且 sendAction 响应链到不了 SwiftUI 实现者，菜单项是死的。已改为与工坊同构的手工窗口（上面代码块即修正版）。**已知差异**：SettingsView 的 Cancel/Save 走 `@Environment(\.dismiss)`，在手工窗口（非 sheet）里是 no-op——Task 6 改造 SettingsView 时统一处理（给 Cancel/Save 补"关所在窗口"的能力）。
 
 **Step 3: WorkshopView 占位**
 
@@ -808,6 +821,10 @@ git commit -m "feat: pet workshop — import/switch/delete VRM models (instant a
 
 **Files:**
 - Modify: `AniCompanion/Views/SettingsView.swift`
+
+**Step 0: dismiss 差异处理（来自 Task 4 review 的已知项）**
+
+SettingsView 的 Cancel/Save 按钮调 `@Environment(\.dismiss)`——在 MainView 的 sheet 里有效，但在 AppDelegate 手工建的 settingsWindow（Task 4 修正版 openSettings）里是 no-op，用户点 Save 后窗口不关。处理：给 SettingsView 加一个可选闭包参数 `var onClose: (() -> Void)? = nil`，Cancel/Save 动作在 `dismiss()` 之外追加 `onClose?()`（sheet 场景 onClose 为 nil 行为不变；手工窗口场景由 openSettings 处传入 `{ [weak settingsWindow] in settingsWindow?.performClose(nil) }`——注意 performClose 会走 windowShouldClose，需确认对非 mainWindow 返回 true 放行；workshopWindow delegate 未设不受影响）。若实现中发现更简洁的做法（如 NSHostingController 的 dismiss 桥接），可替换，但两个场景（sheet + 手工窗口）都必须"保存后关窗"。
 
 **Step 1: 新增本地状态与数据流**
 
