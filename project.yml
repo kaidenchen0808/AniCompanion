@@ -74,3 +74,25 @@ targets:
       - sdk: Speech.framework
       - sdk: WebKit.framework
       - sdk: ScreenCaptureKit.framework
+
+  AniCompanionTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: AniCompanionTests
+    dependencies:
+      - target: AniCompanion
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.anicompanion.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  AniCompanion:
+    build:
+      targets:
+        AniCompanion: all
+        AniCompanionTests: [test]
+    test:
+      targets:
+        - AniCompanionTests
