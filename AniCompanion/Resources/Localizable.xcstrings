@@ -1099,6 +1099,156 @@
       "localizations" : {
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "VRM 模型檔名" } }
       }
+    },
+    "Quiet Mode" : {
+      "comment" : "Context menu: rest at the corner, no speech",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "靜隱模式" } }
+      }
+    },
+    "Pet Workshop…" : {
+      "comment" : "Context menu: open the model workshop",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "桌寵工坊…" } }
+      }
+    },
+    "Pet Workshop" : {
+      "comment" : "Workshop window title",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "桌寵工坊" } }
+      }
+    },
+    "Settings…" : {
+      "comment" : "Context menu: open the settings window",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "設定…" } }
+      }
+    },
+    "Exit Pet Mode" : {
+      "comment" : "Context menu: back to the windowed app",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "離開桌寵模式" } }
+      }
+    },
+    "Mode" : {
+      "comment" : "Settings section title: display mode",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "模式" } }
+      }
+    },
+    "Display Mode" : {
+      "comment" : "Settings: Mode section field label",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "顯示模式" } }
+      }
+    },
+    "Companion" : {
+      "comment" : "Settings: Display Mode option — full companion",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "陪伴模式" } }
+      }
+    },
+    "Quiet" : {
+      "comment" : "Settings: Display Mode option — quiet rest mode",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "靜隱" } }
+      }
+    },
+    "In Quiet mode she rests as a small translucent form at the bottom-right corner — no speech, no bubble. Click her to bring her back." : {
+      "comment" : "Settings: Quiet mode description",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "靜隱模式下她會縮成半透明小身影待在螢幕右下角——不說話、不冒泡。點一下她就能喚回。" } }
+      }
+    },
+    "Manage Models…" : {
+      "comment" : "Settings: open the pet workshop button",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "管理模型…" } }
+      }
+    },
+    "About" : {
+      "comment" : "Settings section title: about",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "關於" } }
+      }
+    },
+    "A desktop AI companion — she watches your work, chats, and keeps you company." : {
+      "comment" : "Settings: About — app tagline",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "桌面 AI 伴侶——她看著你工作、聊天、陪著你。" } }
+      }
+    },
+    "Character: AvatarSample (小光) © VRoid / Alicia Solid © DWANGO — downloaded separately; see ATTRIBUTION.md." : {
+      "comment" : "Settings: About — character attribution",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "角色：AvatarSample（小光）© VRoid / Alicia Solid © DWANGO——另行下載；詳見 ATTRIBUTION.md。" } }
+      }
+    },
+    "Rendering: three-vrm + three.js. Animations derived from Mixamo." : {
+      "comment" : "Settings: About — rendering attribution",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "渲染：three-vrm + three.js。動作動畫源自 Mixamo。" } }
+      }
+    },
+    "Import VRM…" : {
+      "comment" : "Workshop: import button",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "匯入 VRM…" } }
+      }
+    },
+    "Built-in" : {
+      "comment" : "Workshop: shipped model tag",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "內建" } }
+      }
+    },
+    "Imported" : {
+      "comment" : "Workshop: user-imported model tag",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已匯入" } }
+      }
+    },
+    "Delete this model" : {
+      "comment" : "Workshop: delete button tooltip",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除此模型" } }
+      }
+    },
+    "Imported models are stored in Application Support. Alicia Solid (© DWANGO) is for your own use only." : {
+      "comment" : "Workshop: footer — storage & license note",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "匯入的模型存於 Application Support。Alicia Solid（© DWANGO）僅供個人使用。" } }
+      }
+    },
+    "Couldn't import the model" : {
+      "comment" : "Workshop: import failure alert title",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法匯入模型" } }
+      }
+    },
+    "Couldn't delete the model" : {
+      "comment" : "Workshop: delete failure alert title",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法刪除模型" } }
+      }
+    },
+    "Delete “%@”?" : {
+      "comment" : "Workshop: delete confirmation dialog title",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除「%@」？" } }
+      }
+    },
+    "Not a valid VRM (GLB) file." : {
+      "comment" : "Workshop: import validation error",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "不是有效的 VRM（GLB）檔案。" } }
+      }
+    },
+    "Delete" : {
+      "comment" : "Workshop: delete confirmation button",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除" } }
+      }
     }
   },
   "version" : "1.0"
