@@ -324,8 +324,8 @@ User input (text or voice) → HTTP chat (Hermes) → SentenceParser → paralle
   (~80×86, 40% alpha) docked at the bottom-right: no speech, no bubble, backend-pushed
   notifications acked + dropped (`ConversationController.isQuietMode`). Saving while windowed
   persists the choice and applies it on the next enter-pet; while she's a pet the reshape is
-  immediate. Also switchable instantly from the pet context menu (no Save round-trip). See
-  "Pet Context Menu & Quiet Mode".
+  immediate. Also switchable instantly from the pet context menu or by clicking the resting
+  form (no Save round-trip). See "Pet Context Menu & Quiet Mode".
 - **Agent backend** — which gateway to talk to (registered in `ChatBackend`: `hermes` default +
   `openAICompatible` for Ollama/LM Studio/vLLM/OpenRouter; CLI backends `claudeCode`/`codex`/`gemini`)
 - **Endpoint** — selected backend's base URL (Hermes default `http://127.0.0.1:8642`). **Hidden for CLI
@@ -392,10 +392,10 @@ quiet) switches instantly from the pet's right-click menu, or here via **Mode** 
   dropped at the head of `handleNotification` (protocol symmetry; no replay backlog on wake).
   The `displayMode` sink deliberately does NOT touch the flag (its guard would skip the
   launch-into-quiet path, and `exitPet` must clear it on the way to windowed mode).
-- **Waking = the menu toggle or Settings → Mode.** Known gap: a single click does **not** wake
-  her — it still runs the touch raycast (reported to the companion layer, whose reply is muted
-  while quiet), yet the Settings Mode caption says "Click her to bring her back." Fix one side
-  or the other.
+- **Waking = a single click, the menu toggle, or Settings → Mode.** Clicking the resting form
+  wakes her (`drag.onTap` checks `isQuietActive` first and flips `displayMode` to `.companion`
+  through the sink — persistence rides along; don't call `exitQuiet` directly from the tap) and
+  does NOT raycast a touch in that state; companion-form clicks keep the touch interaction.
 - **Pet Workshop** (`AppDelegate.showWorkshop` → `WorkshopView`): **Import VRM…** (open panel →
   GLB-magic validated, name-collision suffixed, copied into
   `~/Library/Application Support/AniCompanion/VRMModel/`, auto-selected so she tries it on

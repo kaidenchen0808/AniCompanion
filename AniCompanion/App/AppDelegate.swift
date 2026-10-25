@@ -215,7 +215,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         drag.onExit = { [weak self] in self?.appState.petMode = false }
         drag.onScale = { [weak self] factor in self?.scalePet(by: factor) }
         drag.onTap = { [weak self] point in
-            guard let self, let webView = self.appState.characterManager.webView else { return }
+            guard let self else { return }
+            if self.isQuietActive {
+                // Clicking the resting mini form wakes her back to the companion form
+                // (the displayMode sink runs exitQuiet).
+                self.appState.displayMode = .companion
+                return
+            }
+            guard let webView = self.appState.characterManager.webView else { return }
             // AppKit window coords (bottom-left origin) → WebView CSS coords (top-left origin)
             let jsX = point.x
             let jsY = webView.bounds.height - point.y
