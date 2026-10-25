@@ -181,6 +181,7 @@ struct SettingsView: View {
                             Button {
                                 // Close Settings, then present the wizard (avoid overlapping sheets).
                                 dismiss()
+                                onClose?()
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                                     appState.showSetupWizard = true
                                 }
@@ -759,7 +760,7 @@ struct SettingsView: View {
                                     .resizable()
                                     .frame(width: 48, height: 48)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("AniCompanion").font(.system(size: 14, weight: .semibold))
+                                    Text(verbatim: "AniCompanion").font(.system(size: 14, weight: .semibold))
                                     Text(verbatim: "v\(appVersion)")
                                         .font(.system(size: 11))
                                         .foregroundStyle(.secondary)
@@ -769,7 +770,7 @@ struct SettingsView: View {
                                 .font(.system(size: 12))
                             Divider()
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Character: AvatarSample (小光) / Alicia Solid © DWANGO — fetched on demand for personal use; see ATTRIBUTION.md.")
+                                Text("Character: AvatarSample (小光) © VRoid / Alicia Solid © DWANGO — downloaded separately; see ATTRIBUTION.md.")
                                 Text("Rendering: three-vrm + three.js. Animations derived from Mixamo.")
                             }
                             .font(.system(size: 11))

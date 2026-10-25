@@ -413,6 +413,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             w.setContentSize(NSSize(width: 480, height: 640))   // SettingsView's own fixed frame
             w.center()
             settingsWindow = w
+        } else if let w = settingsWindow {
+            // A cached window's view never re-runs onAppear (close = orderOut), so its edit state
+            // would go stale — e.g. silently reverting a quiet-mode toggle made via the pet menu.
+            // Re-mount a fresh SettingsView each time it's reopened, matching sheet semantics.
+            w.contentViewController = NSHostingController(
+                rootView: SettingsView(onClose: { [weak w] in w?.performClose(nil) })
+                    .environmentObject(appState)
+            )
         }
         settingsWindow?.makeKeyAndOrderFront(nil)
     }
