@@ -50,7 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // Wider than the character's own footprint so the speech bubble fits in the transparent
     // margin beside her face. She stays centered; the bubble sits in whichever side margin has
     // more screen room (see vrm_scene.html #bubble + setBubbleSide). Tune width if it feels cramped.
-    private static let basePetSize = NSSize(width: 500, height: 540)
+    private static let basePetSize = NSSize(width: 280, height: 300)
     private static let windowedSize = NSSize(width: 1000, height: 650)
 
     /// Current pet size — persists across toggles so a resized pet stays that size.
@@ -58,6 +58,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         appState.initializeServices()
+
+        // Restore the pet size she was last scaled to (written by scalePet); anything
+        // malformed/non-positive falls through to basePetSize.
+        let sizeParts = appState.petSizeStorage.split(separator: ",").compactMap { Double($0) }
+        if sizeParts.count == 2, sizeParts[0] > 0, sizeParts[1] > 0 {
+            currentPetSize = NSSize(width: sizeParts[0], height: sizeParts[1])
+        }
 
         let window = PetPanelWindow(contentViewController: makeWindowedController())
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
@@ -254,7 +261,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func scalePet(by factor: CGFloat) {
         guard isPetActive, let window = mainWindow else { return }
         let ratio = Self.basePetSize.width / Self.basePetSize.height
-        let minHeight: CGFloat = 280
+        let minHeight: CGFloat = 150
         let maxHeight: CGFloat = 1100
         let height = min(max(currentPetSize.height * factor, minHeight), maxHeight)
         currentPetSize = NSSize(width: height * ratio, height: height)
@@ -266,6 +273,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         f.origin.x = centerX - currentPetSize.width / 2
         f.origin.y = bottomY
         window.setFrame(f, display: true)
+        appState.petSizeStorage = "\(currentPetSize.width),\(currentPetSize.height)"
     }
 
     // The main character window is an NSPanel (for non-activating pet mode), and AppKit does NOT
