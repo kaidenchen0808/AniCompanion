@@ -150,6 +150,13 @@ final class AppState: ObservableObject {
         return filename.isEmpty ? "AvatarSample_A.vrm" : filename
     }
 
+    /// Switch the active character model live. Only the webview scene reloads — no service
+    /// rebuild (chat/TTS keep running). Persisted under `vrm_model_filename`.
+    func selectModel(filename: String) {
+        vrmModelFilename = filename
+        characterManager.loadModel(named: filename)
+    }
+
     // MARK: - Owned Objects
 
     /// Manages the VRM character model via three-vrm in a WKWebView.

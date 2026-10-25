@@ -153,7 +153,7 @@ final class VRMModelStore {
     /// component would resolve to the directory itself and delete every imported model.
     @discardableResult
     func deleteModel(filename: String) throws -> Bool {
-        guard !filename.isEmpty, !filename.contains("/") else { return false }
+        guard !filename.isEmpty, !filename.contains("/"), filename != ".", filename != ".." else { return false }
         let url = userModelsDirectory.appendingPathComponent(filename)
         guard fm.fileExists(atPath: url.path) else { return false }
         try fm.removeItem(at: url)
