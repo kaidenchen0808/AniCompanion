@@ -41,6 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private(set) var mainWindow: NSWindow?
     private var petCancellable: AnyCancellable?
     private var sceneReadyCancellable: AnyCancellable?
+    private var framePersistWork: DispatchWorkItem?
     private var isPetActive = false
 
     /// Which side of her face the speech bubble currently sits on ("left"/"right"); flipped as
@@ -156,13 +157,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.contentViewController = nil
         webView.removeFromSuperview()
 
-        // Resize the window to the pet size FIRST, so the content is built at the final size
-        // (building large then shrinking confuses autoresizing and leaves the webView the
-        // wrong size, which is what zoomed the camera onto the legs).
-        var f = window.frame
-        f.origin.y += f.height - currentPetSize.height
-        f.size = currentPetSize
+        // Place her at the remembered spot (or bottom-right on first run). Resize BEFORE
+        // installing the webView — see the ordering gotcha in CLAUDE.md.
+        let f = plannedPetFrame(for: window)
         window.setFrame(f, display: true)
+        currentPetSize = f.size
 
         // Bare transparent webView (+ drag overlay) as the content, sized to fill.
         let bounds = NSRect(origin: .zero, size: currentPetSize)
@@ -199,6 +198,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // The WebGL scene re-fits on the JS 'resize' event, which isn't guaranteed to fire on
         // an AppKit reparent — dispatch it explicitly so three.js re-frames the full character.
         refitScene(webView)
+    }
+
+    /// Where the pet window should sit: the stored frame if its screen is still live,
+    /// otherwise the bottom-right of the key screen (PetFramePlanner owns all the rules).
+    private func plannedPetFrame(for window: NSWindow) -> NSRect {
+        let screens = NSScreen.screens
+        let primary = (window.screen ?? NSScreen.main ?? screens.first)?.visibleFrame
+            ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let stored = PetFramePlanner.decode(appState.petFrameStorage)
+        let anchor = screens.first { screenID($0) == appState.petAnchorScreen }
+        return PetFramePlanner.restore(storedFrame: stored,
+                                       anchorVisible: anchor?.visibleFrame,
+                                       fallbackSize: currentPetSize,
+                                       primaryVisible: primary)
+    }
+
+    /// Stable per-display identity (CGDirectDisplayID via the device description) — how we
+    /// recognize "the screen she was on" across launches. NSScreen exposes no identifier
+    /// property of its own; NSScreenNumber is the canonical one (localizedName would collide
+    /// on two identical monitors).
+    private func screenID(_ screen: NSScreen) -> String {
+        (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID)
+            .map { String($0) } ?? screen.localizedName
     }
 
     private func exitPet(_ window: NSWindow) {
@@ -238,15 +260,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         return window.frame.midX <= screenFrame.midX ? "right" : "left"
     }
 
-    /// As she's dragged around, flip the bubble to the roomier side once she crosses the midline.
+    /// As she's dragged around, flip the bubble to the roomier side once she crosses the midline
+    /// — and remember where she lands (debounced, below). The flip guard is an `if`, not an early
+    /// `return`, so the persistence below still runs on moves that don't cross the midline.
     func windowDidMove(_ notification: Notification) {
         guard isPetActive,
               let window = mainWindow,
               let webView = appState.characterManager.webView else { return }
         let side = bubbleSide(for: window)
-        guard side != lastBubbleSide else { return }
-        lastBubbleSide = side
-        webView.evaluateJavaScript("window.setBubbleSide && window.setBubbleSide('\(side)')", completionHandler: nil)
+        if side != lastBubbleSide {
+            lastBubbleSide = side
+            webView.evaluateJavaScript("window.setBubbleSide && window.setBubbleSide('\(side)')", completionHandler: nil)
+        }
+        persistPetFrameShortly()
+    }
+
+    /// Debounced (500ms) persistence of her position + anchor screen while she's dragged.
+    private func persistPetFrameShortly() {
+        guard isPetActive, let window = mainWindow else { return }
+        framePersistWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.appState.petFrameStorage = PetFramePlanner.encode(window.frame)
+            self.appState.petAnchorScreen = window.screen.map { self.screenID($0) } ?? ""
+        }
+        framePersistWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
     }
 
     /// Force the three.js scene to re-read its size and re-frame the camera.
