@@ -269,11 +269,6 @@
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "角色模型" } }
       }
     },
-    "Couldn't import model: %@" : {
-      "localizations" : {
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法匯入模型：%@" } }
-      }
-    },
     "Download Alicia Solid" : {
       "localizations" : {
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "下載 Alicia Solid" } }
@@ -292,11 +287,6 @@
     "Downloading…" : {
       "localizations" : {
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "下載中…" } }
-      }
-    },
-    "Imported models are stored in Application Support. Alicia Solid (© DWANGO) is fetched for your own use only." : {
-      "localizations" : {
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "匯入的模型會儲存在 Application Support 資料夾。Alicia Solid（© DWANGO）僅供你個人使用而下載。" } }
       }
     },
     "Paused while live captions are on — so she doesn't listen to what you're watching." : {
@@ -752,13 +742,13 @@
     "Desktop Pet Mode" : {
       "comment" : "Character menu item: toggle desktop pet mode",
       "localizations" : {
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "桌面寵物模式" } }
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "桌寵模式" } }
       }
     },
     "Desktop Pet Mode (⌘⇧D)" : {
       "comment" : "Tooltip for the pawprint toolbar button",
       "localizations" : {
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "桌面寵物模式（⌘⇧D）" } }
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "桌寵模式（⌘⇧D）" } }
       }
     },
     "Curious" : {
@@ -1151,7 +1141,7 @@
     "Quiet" : {
       "comment" : "Settings: Display Mode option — quiet rest mode",
       "localizations" : {
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "靜隱" } }
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "靜隱模式" } }
       }
     },
     "In Quiet mode she rests as a small translucent form at the bottom-right corner — no speech, no bubble. Click her to bring her back." : {
@@ -1175,7 +1165,7 @@
     "A desktop AI companion — she watches your work, chats, and keeps you company." : {
       "comment" : "Settings: About — app tagline",
       "localizations" : {
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "桌面 AI 伴侶——她看著你工作、聊天、陪著你。" } }
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "桌面 AI 伴侶——她看著你工作、陪你聊天、也一直陪著你。" } }
       }
     },
     "Character: AvatarSample (小光) © VRoid / Alicia Solid © DWANGO — downloaded separately; see ATTRIBUTION.md." : {
