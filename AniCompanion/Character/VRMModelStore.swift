@@ -31,8 +31,17 @@ final class VRMModelStore {
 
     private let fm = FileManager.default
 
+    private let userDirectoryOverride: URL?
+
+    /// `userDirectoryOverride` exists for unit tests (an injected temp dir); production code
+    /// uses `shared` and gets the real Application Support directory.
+    init(userDirectoryOverride: URL? = nil) {
+        self.userDirectoryOverride = userDirectoryOverride
+    }
+
     /// `~/Library/Application Support/AniCompanion/VRMModel/`, created on first access.
     var userModelsDirectory: URL {
+        if let override = userDirectoryOverride { return override }
         let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("AniCompanion/VRMModel", isDirectory: true)
         try? fm.createDirectory(at: base, withIntermediateDirectories: true)
@@ -134,6 +143,17 @@ final class VRMModelStore {
         }
         try fm.copyItem(at: source, to: dest)
         return dest.lastPathComponent
+    }
+
+    /// Remove a user-imported model from the writable directory. Built-in (bundle) models are
+    /// never touched — only the user directory is consulted, so a built-in filename is a no-op.
+    /// Returns false when the file isn't in the user directory; throws on filesystem errors.
+    @discardableResult
+    func deleteModel(filename: String) throws -> Bool {
+        let url = userModelsDirectory.appendingPathComponent(filename)
+        guard fm.fileExists(atPath: url.path) else { return false }
+        try fm.removeItem(at: url)
+        return true
     }
 
     // MARK: - Embedded VRM title (GLB parse)
