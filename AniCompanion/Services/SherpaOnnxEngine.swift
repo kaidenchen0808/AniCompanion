@@ -27,7 +27,8 @@ final class SherpaOnnxEngine: @unchecked Sendable {
         var lang: String?
         /// Backend threads.
         var numThreads: Int = 2
-        /// Speech rate scale (> 1 slower, < 1 faster).
+        /// Speech rate scale (> 1 slower, < 1 faster). (The vendored header's comment at
+        /// c-api.h:2306 says the opposite — it is inverted; upstream semantics are larger → slower.)
         var lengthScale: Float = 1.0
     }
 
@@ -65,6 +66,7 @@ final class SherpaOnnxEngine: @unchecked Sendable {
         if let handle { SherpaOnnxDestroyOfflineTts(handle) }
     }
 
+    /// `handle` is immutable after init — safe to read unlocked.
     var isLoaded: Bool { handle != nil }
 
     /// Output sample rate in Hz (valid once loaded).

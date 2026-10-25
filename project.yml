@@ -66,7 +66,8 @@ targets:
 
         # Custom C module (module.modulemap) for the sherpa-onnx C API
         SWIFT_INCLUDE_PATHS: AniCompanion/Libraries/sherpa-onnx
-        # The modulemap's `link` autolinks -lsherpa-onnx-c-api / -lonnxruntime;
+        # The modulemap's `link` autolinks -lsherpa-onnx-c-api (onnxruntime loads
+        # transitively via the c-api dylib's own @rpath dependency);
         # point ld at the vendored dylibs
         LIBRARY_SEARCH_PATHS: AniCompanion/Libraries/sherpa-onnx
         # The vendored sherpa-onnx/onnxruntime dylibs are arm64-only; the app targets

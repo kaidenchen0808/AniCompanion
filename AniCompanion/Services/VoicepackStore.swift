@@ -218,7 +218,9 @@ final class VoicepackStore: ObservableObject {
         }
         let session = URLSession(configuration: .ephemeral, delegate: delegate, delegateQueue: nil)
         do {
-            try await withTaskCancellationHandler {
+            // The download already lands at `destination` via the delegate; the handler's
+            // result (the temp URL) is intentionally unused.
+            _ = try await withTaskCancellationHandler {
                 try await withCheckedThrowingContinuation { continuation in
                     delegate.continuation = continuation
                     session.downloadTask(with: URLRequest(url: Self.releaseAssetURL)).resume()
