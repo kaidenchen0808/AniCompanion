@@ -69,6 +69,9 @@ targets:
         # The modulemap's `link` autolinks -lsherpa-onnx-c-api / -lonnxruntime;
         # point ld at the vendored dylibs
         LIBRARY_SEARCH_PATHS: AniCompanion/Libraries/sherpa-onnx
+        # The vendored sherpa-onnx/onnxruntime dylibs are arm64-only; the app targets
+        # Apple Silicon (a universal Release build would fail on the x86_64 slice)
+        ARCHS: arm64
 
     entitlements:
       path: AniCompanion/AniCompanion.entitlements
