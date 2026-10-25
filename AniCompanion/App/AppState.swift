@@ -11,6 +11,9 @@ import WebKit
 enum DisplayMode: String, CaseIterable {
     case companion
     case quiet
+
+    /// UserDefaults key for the persisted choice (project convention: `TTSProvider.storageKey` etc.).
+    static let storageKey = "display_mode"
 }
 
 // MARK: - AppState
@@ -186,12 +189,12 @@ final class AppState: ObservableObject {
     /// sink on `$displayMode` — the same pattern as `petMode`. Toggled from the pet context menu,
     /// Settings → Mode, or by clicking the quiet mini form.
     @Published var displayMode: DisplayMode = {
-        DisplayMode(rawValue: UserDefaults.standard.string(forKey: "display_mode") ?? "") ?? .companion
+        DisplayMode(rawValue: UserDefaults.standard.string(forKey: DisplayMode.storageKey) ?? "") ?? .companion
     }()
 
     /// Persistence slot for `displayMode` (written by AppDelegate's sink — the single place that
     /// applies mode changes, mirroring the petMode/launchInPetMode split).
-    @AppStorage("display_mode") var displayModeStorage: String = DisplayMode.companion.rawValue
+    @AppStorage(DisplayMode.storageKey) var displayModeStorage: String = DisplayMode.companion.rawValue
 
     /// Captures what the user is working on so 小光 can "see" the screen. Long-lived so it tracks
     /// the user's active app across the whole session (see `ScreenVisionService`); gated by

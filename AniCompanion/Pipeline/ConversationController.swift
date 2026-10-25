@@ -699,7 +699,8 @@ final class ConversationController: ObservableObject {
 
     /// Handle a server-pushed notification (e.g. cron job result).
     private func handleNotification(ref: String, source: String) {
-        // Quiet mode: she's resting — ack (so the backend doesn't retry) and drop without speaking.
+        // Quiet mode: she's resting — ack for protocol symmetry (v1 companion-layer is at-most-once;
+        // the send itself is a no-op on plain gateways) and drop without speaking.
         if isQuietMode {
             Log.pipeline("[Pipeline] Notification \(ref) dropped — quiet mode")
             Task { try? await chatTransport.send(.ack(ref: ref)) }

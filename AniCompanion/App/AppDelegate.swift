@@ -44,6 +44,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var framePersistWork: DispatchWorkItem?
     private var isPetActive = false
 
+    /// Quiet mode is active (small translucent form at the bottom-right). Tracked separately from
+    /// `appState.displayMode` for the same reason as `isPetActive` — never re-derive window state.
+    private var isQuietActive = false
+    private var quietCancellable: AnyCancellable?
+
+    /// Quiet form size (QQ-pet corner-sticker scale). Deliberately NOT configurable — the resting
+    /// form is a fixed tiny size; her real size (`currentPetSize`) is restored on wake.
+    private static let quietSize = NSSize(width: 80, height: 86)
+
     /// Which side of her face the speech bubble currently sits on ("left"/"right"); flipped as
     /// she's dragged so it never runs off the screen edge. See `bubbleSide(for:)`.
     private var lastBubbleSide = "right"
@@ -99,7 +108,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self.isPetActive = petMode
                 self.appState.launchInPetMode = petMode   // remember the explicit choice
                 petMode ? self.enterPet(window) : self.exitPet(window)
+                if petMode, self.appState.displayMode == .quiet { self.enterQuiet() }   // before the reveal below
                 if petMode { window.alphaValue = 1 }   // reveal only after enterPet reshaped the window
+            }
+
+        // Apply display-mode changes to the window (quiet ⇄ companion). Mirrors the petMode sink:
+        // always persist the choice, but only reshape the window while the pet is actually active —
+        // a windowed save persists and takes effect on the next enter-pet.
+        // NOTE: `conversationController.isQuietMode` is owned by enterQuiet()/exitQuiet() below —
+        // NOT set here. The sink's guard would skip the flag on launch-into-quiet (the petMode sink
+        // calls enterQuiet() directly), and exitPet must clear it on the way to windowed mode.
+        quietCancellable = appState.$displayMode
+            .receive(on: RunLoop.main)
+            .sink { [weak self] mode in
+                guard let self else { return }
+                self.appState.displayModeStorage = mode.rawValue
+                guard self.isPetActive, (mode == .quiet) != self.isQuietActive else { return }
+                mode == .quiet ? self.enterQuiet() : self.exitQuiet()
             }
 
         // Launch-as-pet: the webView only exists once MainView mounts (windowed form), so
@@ -200,6 +225,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         refitScene(webView)
     }
 
+    // MARK: - Quiet mode (resting mini form)
+
+    /// Shrink her to the translucent corner-sticker form: stop any in-flight speech, clear the
+    /// bubble, dock bottom-right. The window's own alphaValue is untouched (the launch-time
+    /// reveal in the petMode sink stays in charge of that).
+    private func enterQuiet() {
+        guard let window = mainWindow, let webView = appState.characterManager.webView else { return }
+        isQuietActive = true
+        appState.conversationController?.isQuietMode = true   // drop pushed notifications (owned HERE)
+        appState.conversationController?.cancel()          // stop mid-sentence TTS
+        appState.characterManager.setSpeechText(nil)       // hide the bubble
+        let visible = (window.screen ?? NSScreen.main)?.visibleFrame ?? window.frame
+        window.setFrame(PetFramePlanner.bottomRight(size: Self.quietSize, in: visible), display: true)
+        webView.alphaValue = 0.4
+        refitScene(webView)
+    }
+
+    /// Wake back to the companion form: full opacity, remembered spot (or bottom-right).
+    private func exitQuiet() {
+        guard let window = mainWindow, let webView = appState.characterManager.webView else { return }
+        isQuietActive = false
+        appState.conversationController?.isQuietMode = false  // resume pushed notifications
+        webView.alphaValue = 1
+        window.setFrame(plannedPetFrame(for: window), display: true)
+        refitScene(webView)
+    }
+
     /// Where the pet window should sit: the stored frame if its screen is still live,
     /// otherwise the bottom-right of the key screen (PetFramePlanner owns all the rules).
     private func plannedPetFrame(for window: NSWindow) -> NSRect {
@@ -224,6 +276,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func exitPet(_ window: NSWindow) {
+        if isQuietActive {
+            appState.characterManager.webView?.alphaValue = 1
+            isQuietActive = false
+            appState.conversationController?.isQuietMode = false   // windowed mode must not stay muted
+        }
         framePersistWork?.cancel()   // a pending debounced save must not observe the windowed frame
         appState.characterManager.setSpeechText(nil)      // hide bubble (while still active)
         appState.characterManager.petModeActive = false
@@ -265,7 +322,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// — and remember where she lands (debounced, below). The flip guard is an `if`, not an early
     /// `return`, so the persistence below still runs on moves that don't cross the midline.
     func windowDidMove(_ notification: Notification) {
-        guard isPetActive,
+        guard isPetActive, !isQuietActive,
               let window = mainWindow,
               let webView = appState.characterManager.webView else { return }
         let side = bubbleSide(for: window)
@@ -299,7 +356,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// Resize the pet by `factor`, keeping the aspect ratio and anchoring her feet (so she
     /// grows/shrinks in place). The WebView autoresizes and three.js re-frames automatically.
     private func scalePet(by factor: CGFloat) {
-        guard isPetActive, let window = mainWindow else { return }
+        guard isPetActive, !isQuietActive, let window = mainWindow else { return }
         let ratio = Self.basePetSize.width / Self.basePetSize.height
         let minHeight: CGFloat = 150
         let maxHeight: CGFloat = 1100
