@@ -22,16 +22,19 @@ enum KokoroVoice: String, CaseIterable, Identifiable, Sendable {
     /// `allCases`, matching the official kokoro speaker ordering.
     var sid: Int32 { Int32(KokoroVoice.allCases.firstIndex(of: self)!) }
 
+    /// Localized at the call site (`String(localized:)`, not a raw literal) because the
+    /// Picker renders `Text(option.displayName)` — a plain String wouldn't hit xcstrings.
+    /// En falls back to the key itself; zh-Hant translations live in Localizable.xcstrings.
     var displayName: String {
         switch self {
-        case .xiaobei: return "Xiaobei"
-        case .xiaoni: return "Xiaoni (gentle)"
-        case .xiaoxiao: return "Xiaoxiao"
-        case .xiaoyi: return "Xiaoyi"
-        case .yunjian: return "Yunjian"
-        case .yunxi: return "Yunxi"
-        case .yunxia: return "Yunxia"
-        case .yunyang: return "Yunyang"
+        case .xiaobei: return String(localized: "Xiaobei", comment: "Kokoro voice: female")
+        case .xiaoni: return String(localized: "Xiaoni (gentle)", comment: "Kokoro voice: female, gentle (the default)")
+        case .xiaoxiao: return String(localized: "Xiaoxiao", comment: "Kokoro voice: female")
+        case .xiaoyi: return String(localized: "Xiaoyi", comment: "Kokoro voice: female")
+        case .yunjian: return String(localized: "Yunjian", comment: "Kokoro voice: male")
+        case .yunxi: return String(localized: "Yunxi", comment: "Kokoro voice: male")
+        case .yunxia: return String(localized: "Yunxia", comment: "Kokoro voice: male")
+        case .yunyang: return String(localized: "Yunyang", comment: "Kokoro voice: male")
         }
     }
 }

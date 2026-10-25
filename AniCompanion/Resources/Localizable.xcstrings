@@ -1214,6 +1214,108 @@
       "localizations" : {
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除" } }
       }
+    },
+    "Gentle voicepack — Kokoro, on-device & offline. ~140MB, download once." : {
+      "comment" : "Voicepack: download blurb (not-installed card)",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "溫柔語音包——Kokoro，本機離線。約 140MB，下載一次永久使用。" } }
+      }
+    },
+    "Download Voicepack" : {
+      "comment" : "Voicepack: download button",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "下載語音包" } }
+      }
+    },
+    "Downloading voicepack…" : {
+      "comment" : "Voicepack: download progress label",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "語音包下載中…" } }
+      }
+    },
+    "Retry" : {
+      "comment" : "Voicepack: retry failed download button",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "重試" } }
+      }
+    },
+    "Not enough free disk space (needs ~280MB free)." : {
+      "comment" : "Voicepack: not enough free space hint",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "磁碟空間不足（需要約 280MB 可用空間）。" } }
+      }
+    },
+    "Voice pack download failed verification. Please try again." : {
+      "comment" : "Voicepack: downloaded zip sha256 mismatch",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "語音包校驗失敗，請重試。" } }
+      }
+    },
+    "Voice pack unpacking failed (code %d)." : {
+      "comment" : "Voicepack: ditto nonzero exit code",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "語音包解壓失敗（代碼 %d）。" } }
+      }
+    },
+    "Not enough free disk space to install the voice pack." : {
+      "comment" : "Voicepack: needs more than 2x pack size free",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "磁碟空間不足，無法安裝語音包。" } }
+      }
+    },
+    "Voice pack download failed (bad server response)." : {
+      "comment" : "Voicepack: non-2xx HTTP status",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "語音包下載失敗（伺服器回應無效）。" } }
+      }
+    },
+    "Xiaobei" : {
+      "comment" : "Kokoro voice: female",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "小貝" } }
+      }
+    },
+    "Xiaoni (gentle)" : {
+      "comment" : "Kokoro voice: female, gentle (the default)",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "小妮（溫柔）" } }
+      }
+    },
+    "Xiaoxiao" : {
+      "comment" : "Kokoro voice: female",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "小曉" } }
+      }
+    },
+    "Xiaoyi" : {
+      "comment" : "Kokoro voice: female",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "小依" } }
+      }
+    },
+    "Yunjian" : {
+      "comment" : "Kokoro voice: male",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "雲健" } }
+      }
+    },
+    "Yunxi" : {
+      "comment" : "Kokoro voice: male",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "雲希" } }
+      }
+    },
+    "Yunxia" : {
+      "comment" : "Kokoro voice: male",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "雲夏" } }
+      }
+    },
+    "Yunyang" : {
+      "comment" : "Kokoro voice: male",
+      "localizations" : {
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "雲揚" } }
+      }
     }
   },
   "version" : "1.0"

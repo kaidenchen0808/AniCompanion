@@ -22,11 +22,12 @@ final class VoicepackStore: ObservableObject {
     }
     @Published private(set) var state: State
 
-    // Release asset constants —— make-voicepack.sh 发布后回填 expectedSHA256（现在占位，
-    // 校验逻辑仍完整实现并测试；单测里注入 expectedSHA256）。
+    // Release asset constants —— sha256/size 由 scripts/make-voicepack.sh 打包后回填
+    // （源模型 sherpa-onnx tts-models 的 kokoro-int8-multi-lang-v1_1，mtime 固定，
+    // 同一 tarball 重跑产出 bit-identical zip，此哈希稳定）。
     nonisolated static let releaseAssetURL = URL(string: "https://github.com/catsmice/AniCompanion/releases/download/voicepack-kokoro-v1/kokoro-zh-v1.zip")!
-    nonisolated static let expectedSHA256 = "PENDING-RELEASE"
-    nonisolated static let expectedSizeBytes: Int64 = 150_000_000
+    nonisolated static let expectedSHA256 = "40ee612aebbfdd8fa03a275654a478a243ff388ad7675c36861aba0142465529"
+    nonisolated static let expectedSizeBytes: Int64 = 140_017_258
     nonisolated static let packVersion = "v1"
 
     nonisolated static let manifestName = "manifest.json"

@@ -1421,7 +1421,7 @@ private struct VoicepackCard: View {
 
     private var notInstalled: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Gentle voicepack — Kokoro, on-device & offline. ~150MB, download once.")
+            Text("Gentle voicepack — Kokoro, on-device & offline. ~140MB, download once.")
                 .font(.system(size: 11))
                 .foregroundStyle(.white.opacity(0.5))
                 .fixedSize(horizontal: false, vertical: true)
@@ -1432,7 +1432,7 @@ private struct VoicepackCard: View {
             }
             .disabled(!store.hasEnoughFreeSpace)
             if !store.hasEnoughFreeSpace {
-                Text("Not enough free disk space (needs ~300MB free).")
+                Text("Not enough free disk space (needs ~280MB free).")
                     .font(.system(size: 11))
                     .foregroundStyle(.red.opacity(0.85))
                     .fixedSize(horizontal: false, vertical: true)

@@ -58,5 +58,8 @@ scripts/dev-signing-identity
 .build-release/
 AniCompanion-*.dmg
 
+# Kokoro voicepack artifacts (scripts/make-voicepack.sh) — model cache + built zip
+dist/
+
 # Git worktrees
 .worktrees/
