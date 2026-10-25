@@ -66,11 +66,14 @@ final class VRMModelStoreTests: XCTestCase {
     @MainActor
     func testDelete_rejectsPathLikeFilename() throws {
         // "" resolves to the user directory itself and would delete EVERY imported model;
-        // "../x.vrm" escapes the directory. Both must be no-ops that leave it all intact.
+        // "../x.vrm" escapes the directory; "." / ".." contain no slash but would delete the
+        // directory (or its parent). All four must be no-ops that leave everything intact.
         try writeMinimalVRM("Mine.vrm")
         let store = makeStore()
         XCTAssertFalse(try store.deleteModel(filename: ""))
         XCTAssertFalse(try store.deleteModel(filename: "../x.vrm"))
+        XCTAssertFalse(try store.deleteModel(filename: "."))
+        XCTAssertFalse(try store.deleteModel(filename: ".."))
         XCTAssertTrue(FileManager.default.fileExists(atPath: tempDir.path))
         XCTAssertTrue(store.availableModels().contains { $0.filename == "Mine.vrm" })
     }
@@ -96,5 +99,24 @@ final class VRMModelStoreTests: XCTestCase {
         // The fixture's JSON chunk is genuinely parsed (valid magic + chunk type), finds no
         // VRM meta title, and falls back to the filename stem as the display name.
         XCTAssertEqual(store.availableModels().first { $0.filename == "Src.vrm" }?.displayName, "Src")
+    }
+
+    @MainActor
+    func testImport_rejectsNonGLB() throws {
+        // A renamed junk file must be rejected before copying — importing it would auto-select
+        // it in the workshop and then silently fail to load in the webview on every launch.
+        let srcDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("VRMStoreTests-src-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: srcDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: srcDir) }
+        let src = srcDir.appendingPathComponent("Junk.vrm")
+        try Data("definitely not a glb".utf8).write(to: src)
+
+        let store = makeStore()
+        XCTAssertThrowsError(try store.importModel(from: src)) { error in
+            XCTAssertEqual(error as? VRMModelStoreError, .notAGLB)
+        }
+        XCTAssertFalse(store.availableModels().contains { $0.filename == "Junk.vrm" })
+        XCTAssertFalse(FileManager.default.fileExists(atPath: tempDir.appendingPathComponent("Junk.vrm").path))
     }
 }

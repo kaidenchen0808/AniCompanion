@@ -15,6 +15,21 @@ struct VRMModelInfo: Identifiable, Hashable {
     var id: String { filename }
 }
 
+// MARK: - VRMModelStoreError
+
+/// User-facing import failures (`LocalizedError` so the workshop alert shows a clean sentence).
+enum VRMModelStoreError: LocalizedError {
+    /// The picked file doesn't start with the GLB magic — likely a renamed non-VRM file.
+    case notAGLB
+
+    var errorDescription: String? {
+        switch self {
+        case .notAGLB:
+            return String(localized: "Not a valid VRM (GLB) file.", comment: "Workshop: import validation error")
+        }
+    }
+}
+
 // MARK: - VRMModelStore
 
 /// Locates VRM model files across the two places they can live:
@@ -130,9 +145,13 @@ final class VRMModelStore {
     // MARK: - Import
 
     /// Copy a user-picked `.vrm` into the writable models directory, returning the stored filename.
-    /// On a name collision with an existing user model, a numeric suffix is appended.
+    /// On a name collision with an existing user model, a numeric suffix is appended. Files that
+    /// don't carry the GLB magic are rejected (`VRMModelStoreError.notAGLB`) before anything is
+    /// copied — a renamed junk file must never land in the list, get selected, and then silently
+    /// fail to load in the webview on every launch.
     @discardableResult
     func importModel(from source: URL) throws -> String {
+        guard Self.looksLikeGLB(source) else { throw VRMModelStoreError.notAGLB }
         let dir = userModelsDirectory
         var dest = dir.appendingPathComponent(source.lastPathComponent)
         let stem = source.deletingPathExtension().lastPathComponent
@@ -144,6 +163,16 @@ final class VRMModelStore {
         }
         try fm.copyItem(at: source, to: dest)
         return dest.lastPathComponent
+    }
+
+    /// Whether the file starts with the GLB magic ("glTF") — the minimal sanity check for a
+    /// `.vrm` (glTF-Binary) file. Same FileHandle read pattern as `embeddedTitle`, capped at
+    /// the 4 magic bytes so even huge files are peeked at cheaply.
+    private static func looksLikeGLB(_ url: URL) -> Bool {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+        defer { try? handle.close() }
+        guard let magic = try? handle.read(upToCount: 4), magic.count == 4 else { return false }
+        return magic == Data([0x67, 0x6C, 0x54, 0x46])   // "glTF" little-endian
     }
 
     /// Remove a user-imported model from the writable directory. Built-in (bundle) models are

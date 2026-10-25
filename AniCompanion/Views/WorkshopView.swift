@@ -11,16 +11,12 @@ struct WorkshopView: View {
     @EnvironmentObject private var appState: AppState
 
     @State private var models: [VRMModelInfo] = []
-    @State private var selected: String = ""
     @State private var importErrorText: String?
     @State private var deleteErrorText: String?
     @State private var pendingDelete: VRMModelInfo?
 
     var body: some View {
         VStack(spacing: 0) {
-            header
-            Divider()
-
             List {
                 ForEach(models) { model in
                     row(model)
@@ -70,18 +66,11 @@ struct WorkshopView: View {
 
     // MARK: - Pieces
 
-    private var header: some View {
-        HStack {
-            Text("Pet Workshop")
-                .font(.system(size: 15, weight: .semibold))
-            Spacer()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-    }
-
     private func row(_ model: VRMModelInfo) -> some View {
-        let isSelected = model.filename == selected
+        // The check mark reads the persisted value directly — the workshop window is never
+        // torn down (close = orderOut), so any other writer (e.g. the legacy Settings picker
+        // until Task 6) must stay reflected here without waiting for an onAppear.
+        let isSelected = model.filename == appState.vrmModelFilename
         return HStack(spacing: 10) {
             Image(systemName: isSelected ? "checkmark.circle.fill" : "person.crop.square")
                 .foregroundStyle(isSelected ? Color.accentColor : .secondary)
@@ -137,12 +126,10 @@ struct WorkshopView: View {
 
     private func refresh() {
         models = VRMModelStore.shared.availableModels()
-        selected = appState.vrmModelFilename
     }
 
     private func select(_ model: VRMModelInfo) {
-        guard model.filename != selected else { return }
-        selected = model.filename
+        guard model.filename != appState.vrmModelFilename else { return }
         appState.selectModel(filename: model.filename)
     }
 
@@ -170,8 +157,7 @@ struct WorkshopView: View {
         do {
             // If she's wearing the model being deleted, switch her back to the default FIRST
             // (live reload), then remove the file — never a deleted-file load.
-            if model.filename == selected {
-                selected = VRMModelStore.defaultModelFilename
+            if model.filename == appState.vrmModelFilename {
                 appState.selectModel(filename: VRMModelStore.defaultModelFilename)
             }
             try VRMModelStore.shared.deleteModel(filename: model.filename)
