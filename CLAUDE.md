@@ -36,7 +36,7 @@ macOS desktop AI character app with VRM 3D character rendering, LLM chat, TTS sp
 AniCompanion/
 ├── AniCompanion/
 │   ├── App/             # App entry (AniCompanionApp), AppDelegate (owns the NSWindow + pet mode), AppState, AppLanguage, Log
-│   ├── Views/           # SwiftUI views (Main, Chat, Settings) + DesktopPet (PetDragView: click=touch her, drag=move, double-click=exit)
+│   ├── Views/           # SwiftUI views (Main, Chat, Settings, Workshop) + DesktopPet (PetDragView: click=touch her, drag=move, double-click=exit, right-click=context menu)
 │   ├── Services/        # ChatTransport + HTTPChatService (Hermes), TTS (TTSProvider: MiniMax + OpenAI + BlueMagpie), STT, ScreenVision, AudioPlayer, ObjCSupport
 │   ├── Character/       # ThreeVRMCharacterManager, ThreeVRMRenderView (WKWebView bridge to three-vrm)
 │   ├── Pipeline/        # Orchestration (ConversationController, SentenceParser, AudioQueue)
@@ -150,8 +150,15 @@ User input (text or voice) → HTTP chat (Hermes) → SentenceParser → paralle
 
 ### VRM Model
 
-- Default model is **Alicia Solid** (download-only — see `ATTRIBUTION.md`); any VRM works. Set the
-  filename in Settings (**VRM Model Filename**) after placing it in `Resources/VRMModel/`.
+- Models are managed in the **Pet Workshop** (Settings → Character → **Manage Models…**, or the
+  pet context menu): import `.vrm` files, switch with instant live reload, delete imported ones.
+  `VRMModelStore` merges the bundle's `Resources/VRMModel/` with
+  `~/Library/Application Support/AniCompanion/VRMModel/`, deduped by filename (user dir wins).
+- The shipped default is **小光** (`AvatarSample_A.vrm`, © VRoid, committed); any VRM works.
+  **Alicia Solid** is the classic optional download — the in-app "Download Alicia Solid" button
+  went away with the old Settings picker, so fetch her with `scripts/download-model.sh` (dev) or
+  import the file in the workshop (users). Her license forbids redistribution (see
+  `ATTRIBUTION.md`); Settings → About credits the characters as "downloaded separately".
 - Only standard VRM expression presets are required (happy/sad/angry/relaxed + `aa` viseme + blink);
   ARKit Perfect Sync is optional.
 - Default camera: X:0.0, Y:1.0, Z:4.7, LookAtY:0.8 (three-vrm uses +Z forward); tune live with W/S/A/D/Q/E/R/F.
@@ -313,15 +320,22 @@ User input (text or voice) → HTTP chat (Hermes) → SentenceParser → paralle
   or the **"No AI model connected"** CTA banner in `MainView` (shown when `!isConnected`). Detects local
   backends (`AgentDetector`), runs a live 1-token probe (`AgentDetector.test`) to catch "installed but not
   logged in", then saves. The wizard `.sheet` is attached at the outer view level (see the two-`.sheet` gotcha).
+- **Mode → Display Mode** (`Companion` | `Quiet`) — quiet parks her as a small translucent form
+  (~80×86, 40% alpha) docked at the bottom-right: no speech, no bubble, backend-pushed
+  notifications acked + dropped (`ConversationController.isQuietMode`). Saving while windowed
+  persists the choice and applies it on the next enter-pet; while she's a pet the reshape is
+  immediate. Also switchable instantly from the pet context menu (no Save round-trip). See
+  "Pet Context Menu & Quiet Mode".
 - **Agent backend** — which gateway to talk to (registered in `ChatBackend`: `hermes` default +
   `openAICompatible` for Ollama/LM Studio/vLLM/OpenRouter; CLI backends `claudeCode`/`codex`/`gemini`)
 - **Endpoint** — selected backend's base URL (Hermes default `http://127.0.0.1:8642`). **Hidden for CLI
   backends** (`ChatBackend.usesEndpoint == false` — they auto-find their binary on PATH).
 - **API Key** — Bearer token for the gateway (for Hermes, its `API_SERVER_KEY`). **Hidden for Claude Code /
   Codex** (`usesAPIKey == false` — they use the CLI's own login); shown for Gemini (needs `GEMINI_API_KEY`).
-- **Character → VRM Model Filename** — file under `Resources/VRMModel/` to load (default
-  `AliciaSolid.vrm`); changing it reloads the three-vrm scene live (via `loadModel` →
-  `loadPendingModelIfPossible`, gated on `isWebViewReady`)
+- **Character** — read-only current model name + **Manage Models…**, which opens the **Pet
+  Workshop** window (import/switch/delete, instant apply — see "Pet Context Menu & Quiet Mode").
+  The in-panel model picker (and its in-app "Download Alicia Solid" download) was removed; model
+  switching lives in the workshop now.
 - **Enable TTS Voice** + **TTS Provider** (`Apple (on-device)` default | `MiniMax` | `OpenAI` | `BlueMagpie`):
   - Apple *(default)*: **Voice** (Auto / installed voices) + **Rate** — no key, no network
   - MiniMax: **API Key**, **Group ID**, **Voice ID**
@@ -349,9 +363,59 @@ User input (text or voice) → HTTP chat (Hermes) → SentenceParser → paralle
   a live model-availability row (installed on-device / downloads on first use / Apple servers /
   unsupported), plus **Translate captions** + **Translate to** (zh-Hant/zh-Hans/en) with a
   translation-pack status row and a live session-status row. Display-only; nothing is spoken.
+- **About** — app icon, version (`CFBundleShortVersionString`), tagline, and credits. The
+  character copyright line reads "downloaded separately; see `ATTRIBUTION.md`" (Alicia Solid is
+  never bundled — license; see VRM Model).
 
-Desktop Pet mode is not in this panel — toggle it from the 🐾 toolbar button, the **Character**
-menu, or **⌘⇧D**.
+Desktop Pet *mode* is not in this panel — the pet **shape** (windowed ⇄ desktop pet) toggles from
+the 🐾 toolbar button, the **Character** menu, or **⌘⇧D**. The **display mode** (companion ⇄
+quiet) switches instantly from the pet's right-click menu, or here via **Mode** (applies on Save).
+
+## Pet Context Menu & Quiet Mode
+
+- **Pet context menu** (`PetDragView.rightMouseDown` → `menuProvider` → `AppDelegate.buildPetMenu`):
+  right-click her in pet mode for **Quiet Mode** (checkmark mirrors `displayMode`) / **Pet
+  Workshop…** / **Settings…** (⌘,) / **Exit Pet Mode**. Pet mode has no SwiftUI tree, so this is a
+  plain AppKit `NSMenu` with target-action on the AppDelegate — it owns the mode + window state,
+  the view only pops the menu up.
+- **Quiet mode** (`AppDelegate.enterQuiet`/`exitQuiet`, persisted as `display_mode`): she shrinks
+  to an 80×86 form at 40% alpha docked at the screen's bottom-right (`visibleFrame`); in-flight
+  TTS is cancelled, the bubble cleared, a pending debounced frame-save cancelled. While quiet,
+  scroll/pinch resize is off and drags neither flip the bubble nor persist the frame
+  (`windowDidMove`/`scalePet`/the debounced save all guard on `isQuietActive`) — so waking returns
+  to her remembered companion spot and a stray quiet frame never pollutes `petFrameStorage`.
+  Double-click still exits pet mode: opacity + notification mute are restored, but `displayMode`
+  stays `.quiet` ("still resting") so the next pet entry comes back quiet. Launch-into-quiet and
+  windowed→pet both reveal the small form directly (no full-size flash).
+- **Notification suppression is `ConversationController.isQuietMode`, owned by
+  `enterQuiet`/`exitQuiet`** — pushed notifications (poll / WebSocket `say` frames) are acked +
+  dropped at the head of `handleNotification` (protocol symmetry; no replay backlog on wake).
+  The `displayMode` sink deliberately does NOT touch the flag (its guard would skip the
+  launch-into-quiet path, and `exitPet` must clear it on the way to windowed mode).
+- **Waking = the menu toggle or Settings → Mode.** Known gap: a single click does **not** wake
+  her — it still runs the touch raycast (reported to the companion layer, whose reply is muted
+  while quiet), yet the Settings Mode caption says "Click her to bring her back." Fix one side
+  or the other.
+- **Pet Workshop** (`AppDelegate.showWorkshop` → `WorkshopView`): **Import VRM…** (open panel →
+  GLB-magic validated, name-collision suffixed, copied into
+  `~/Library/Application Support/AniCompanion/VRMModel/`, auto-selected so she tries it on
+  immediately), **switch** by tapping a row (`AppState.selectModel` → `loadModel` live reload —
+  instant apply, no Save button), **delete** on imported models only (confirm dialog; deleting
+  the worn model switches back to 小光 *first*, so she never loads a deleted file).
+- **Auxiliary windows in pet mode are hand-built `NSWindow`s**: pet mode tears down MainView, so
+  SwiftUI `openWindow` / the Settings scene have no anchor to act on — `showWorkshop` and
+  `openSettings` create their own `NSWindow` + `NSHostingController` (lazy, single instance,
+  `isReleasedWhenClosed = false`, close = `orderOut`; `NSApp.activate` first, because the pet
+  panel is non-activating). `showSettingsWindow:` is dead on macOS 14+ — Apple removed the
+  action; don't reach for it. And **a cached window must rebuild its `contentViewController` on
+  reopen**: `onAppear` runs once per hosted-view lifetime, so a reopened Settings window would
+  otherwise show stale edit state (e.g. missing a quiet toggle made via the pet menu). The
+  workshop window skips the rebuild by reading the persisted `vrmModelFilename` at render time.
+- **Known limitation — "Re-run setup…" from pet mode does nothing visible**: the hand-built
+  Settings window's button closes the window and sets `showSetupWizard = true`, but the wizard
+  sheet's host (the outer level of `MainView`) doesn't exist in pet mode, so the wizard never
+  presents. Re-run setup from windowed mode (follow-up: bounce to windowed first, or host the
+  wizard in its own window).
 
 ## Running Hermes (bring your own)
 
@@ -388,6 +452,14 @@ it answers from the model.
 - **Two `.sheet(isPresented:)` on the SAME view don't both present**: SwiftUI reliably drives only one sheet per view. `MainView` had the Settings sheet and the setup-wizard sheet stacked on the NavigationStack content → the wizard silently never appeared on first launch (the gate ran, `showSetupWizard` went true, but nothing showed). Fix: attach the two sheets to **different views** in the hierarchy — the wizard `.sheet` now lives at the outer level (below `.preferredColorScheme`), the Settings sheet stays inside. (Alternative: one `.sheet(item:)` with an enum.) Diagnosing this: os_log `log stream` was TCC-blocked in the agent env — writing the gate values to a `/tmp` file from inside the method was the reliable way to see them.
 - **Input gain must be applied AFTER any fixed-threshold RMS gate, never before** (`MicGain`): boosting the mic (`stt_input_gain`, 1×–3×) helps recognition of soft speech, but the silence-detection gate (`WhisperSTTService`, fixed `silenceRMSThreshold = 0.01`) and the barge-in gate (`FullDuplexVoiceService`, `bargeInRMSThreshold = 0.05`) are calibrated to *un-boosted* levels. Applying gain first pushes boosted room noise past those thresholds → Whisper auto-stop-on-silence never fires (recording never ends, hands-free stalls) and full-duplex barge-in false-triggers. Fix (both taps): **compute the RMS on the original buffer, THEN `MicGain.apply`** for the audio fed to recognition. Apple STT is unaffected (its silence timer is driven by `SFSpeechRecognizer` partials, not RMS).
 - **Resetting first-run/UserDefaults state is a minefield (non-sandboxed app + leftover container + cfprefsd)**: to make the setup wizard show again you must clear `agent_setup_completed` + `chat_backend` + every `chat_endpoint_*`/`chat_api_key_*`, but naive resets get silently undone by TWO traps: (1) a leftover sandbox **container** (`~/Library/Containers/com.anicompanion.app/…`) makes `defaults read/write com.anicompanion.app` redirect there, a no-op against the GLOBAL plist the (non-sandboxed) app actually reads; (2) **cfprefsd serves its in-memory cache to the app on launch** (ignoring your disk edit) AND a **gracefully-quit app flushes its UserDefaults back to disk**, restoring the keys you just deleted. Correct sequence: **SIGKILL the app** (`pkill -9` — no flush) → `killall cfprefsd` (drop cache) → edit the global plist with **PlistBuddy** (not `defaults`) → `rm` the stale container plist → `killall cfprefsd` → launch immediately, with **no pref reads in between**. `scripts/reset-onboarding.sh` (+ `--restore`) encodes exactly this.
+- **Pet mode kills SwiftUI window scenes — hand-build auxiliary `NSWindow`s**: once `enterPet`
+  tears down MainView, `openWindow` and the Settings scene have no anchor to act on, so the
+  workshop and Settings windows are AppDelegate-built `NSWindow`s (`isReleasedWhenClosed = false`,
+  close = `orderOut`). Reopening a cached window must rebuild its `contentViewController` —
+  `onAppear` runs once per hosted view, so stale edit state would otherwise show (the reverse
+  trap: views that must survive a reopen should read persisted state at render time, like
+  `WorkshopView` does). And `showSettingsWindow:` was removed in macOS 14 — never fires. Details
+  under "Pet Context Menu & Quiet Mode".
 
 ## Status
 
@@ -400,8 +472,10 @@ opt-in **screen vision** (ScreenCaptureKit capture → multimodal
 model, with smart
 self-gating proactive glances), live streaming chat UI, 16 emotions, skeletal animation clips,
 proactive idle timer (60 min, or a shorter configurable interval when screen vision is on),
-configurable VRM model (Settings), desktop pet mode (non-activating transparent draggable overlay
-with resize + speech bubble), opt-in **live transcription** (system audio → on-device Apple STT →
+configurable VRM model (Pet Workshop — import/switch/delete, instant apply), desktop pet mode
+(non-activating transparent draggable overlay with resize + speech bubble, a right-click context
+menu, and a **quiet** resting form — small, translucent, bottom-right, pushed notifications
+dropped), opt-in **live transcription** (system audio → on-device Apple STT →
 live captions in the pet bubble / a caption overlay, display-only; opt-in **translate mode** —
 on-device Apple Translation per finalized segment, dual-line original + translation).
 
