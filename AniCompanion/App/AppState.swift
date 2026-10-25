@@ -161,7 +161,8 @@ final class AppState: ObservableObject {
     @AppStorage("launch_in_pet_mode") var launchInPetMode: Bool = true
     /// Last pet window frame, encoded "x,y,w,h" via PetFramePlanner.encode/decode.
     @AppStorage("pet_frame") var petFrameStorage: String = ""
-    /// deviceIdentifier of the screen she was last on (nil/"" = primary bottom-right).
+    /// Screen she was last on, as the CGDirectDisplayID string from AppDelegate.screenID
+    /// ("" or an unplugged screen = fall back to the primary screen's bottom-right).
     @AppStorage("pet_anchor_screen") var petAnchorScreen: String = ""
     /// Last pet size, encoded like petFrame (pet width+height).
     @AppStorage("pet_size") var petSizeStorage: String = ""

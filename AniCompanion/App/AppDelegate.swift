@@ -48,9 +48,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// she's dragged so it never runs off the screen edge. See `bubbleSide(for:)`.
     private var lastBubbleSide = "right"
 
-    // Wider than the character's own footprint so the speech bubble fits in the transparent
-    // margin beside her face. She stays centered; the bubble sits in whichever side margin has
-    // more screen room (see vrm_scene.html #bubble + setBubbleSide). Tune width if it feels cramped.
+    // QQ-pet scale (~1/6 of a laptop screen height). At this width the speech bubble renders
+    // as an above-head banner (body.small-pet in vrm_scene.html); scaled up past ~360px it
+    // becomes the classic side bubble in the transparent margin beside her face.
     private static let basePetSize = NSSize(width: 280, height: 300)
     private static let windowedSize = NSSize(width: 1000, height: 650)
 
@@ -330,10 +330,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard sender === mainWindow, !isPetActive else { return true }
         appState.petMode = true   // enterPet reshapes this same window; no actual close
         return false
-    }
-
-    func windowWillClose(_ notification: Notification) {
-        // Defensive only now: pet mode has no close button, and windowed close is vetoed in
-        // windowShouldClose. Keeps auxiliary windows (Settings) from ever quitting the app.
     }
 }
