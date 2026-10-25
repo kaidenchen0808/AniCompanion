@@ -26,7 +26,7 @@ final class VoicepackStore: ObservableObject {
     // （源模型 sherpa-onnx tts-models 的 kokoro-int8-multi-lang-v1_1。注意：zip 重打包
     // 并非 bit-identical（条目序不稳定）——发布流是「打包一次 → 回填该 zip 哈希 →
     // make-voicepack.sh --publish-only 上传同一个 zip」，切勿回填后重打包）。
-    nonisolated static let releaseAssetURL = URL(string: "https://github.com/catsmice/AniCompanion/releases/download/voicepack-kokoro-v1/kokoro-zh-v1.zip")!
+    nonisolated static let releaseAssetURL = URL(string: "https://github.com/kaidenchen0808/AniCompanion/releases/download/voicepack-kokoro-v1/kokoro-zh-v1.zip")!
     nonisolated static let expectedSHA256 = "ae4c57b836627ab7ae1a38f24fdcf77b4a62ef7725eea5f1f920777e59f808bd"
     nonisolated static let expectedSizeBytes: Int64 = 140017258
     nonisolated static let packVersion = "v1"

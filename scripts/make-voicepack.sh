@@ -29,9 +29,9 @@ MODEL_URL="https://github.com/$SHERPA_REPO/releases/download/$SHERPA_TAG/$MODEL_
 # Must match AniCompanion/Services/VoicepackStore.swift (releaseAssetURL filename).
 ZIP_NAME="kokoro-zh-v1.zip"
 
-# GitHub Release (catsmice/AniCompanion, tag voicepack-kokoro-v1).
+# GitHub Release (kaidenchen0808/AniCompanion fork, tag voicepack-kokoro-v1).
 RELEASE_TAG="voicepack-kokoro-v1"
-PUBLISH_REPO="catsmice/AniCompanion"
+PUBLISH_REPO="kaidenchen0808/AniCompanion"   # our fork; catsmice is read-only for us
 
 PUBLISH=0
 PUBLISH_ONLY=0
