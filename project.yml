@@ -23,6 +23,9 @@ targets:
           - "Resources/Animations/**"
           - "Resources/ThreeVRM/**"
           - "Resources/Persona/**"
+          # Prebuilt sherpa-onnx dylibs are wired in via `dependencies` below
+          # (link + embed); keep the folder scan away from them.
+          - "Libraries/**"
 
       # VRM model resources as a folder reference
       - path: AniCompanion/Resources/VRMModel
@@ -61,6 +64,12 @@ targets:
         # Bridging header exposing the ObjC exception catcher to Swift
         SWIFT_OBJC_BRIDGING_HEADER: AniCompanion/ObjCSupport/AniCompanion-Bridging-Header.h
 
+        # Custom C module (module.modulemap) for the sherpa-onnx C API
+        SWIFT_INCLUDE_PATHS: AniCompanion/Libraries/sherpa-onnx
+        # The modulemap's `link` autolinks -lsherpa-onnx-c-api / -lonnxruntime;
+        # point ld at the vendored dylibs
+        LIBRARY_SEARCH_PATHS: AniCompanion/Libraries/sherpa-onnx
+
     entitlements:
       path: AniCompanion/AniCompanion.entitlements
 
@@ -75,6 +84,14 @@ targets:
       - sdk: WebKit.framework
       - sdk: ScreenCaptureKit.framework
 
+    # sherpa-onnx C API dynamic libraries (embedded; libonnxruntime.dylib is a
+    # runtime dependency of libsherpa-onnx-c-api.dylib resolved via @rpath)
+    dependencies:
+      - framework: AniCompanion/Libraries/sherpa-onnx/libsherpa-onnx-c-api.dylib
+        embed: true
+      - framework: AniCompanion/Libraries/sherpa-onnx/libonnxruntime.dylib
+        embed: true
+
   AniCompanionTests:
     type: bundle.unit-test
     platform: macOS
@@ -86,6 +103,9 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.anicompanion.tests
         GENERATE_INFOPLIST_FILE: YES
+        # Resolve the vendored sherpa_onnx C module when compiling tests that
+        # @testable import the app target
+        SWIFT_INCLUDE_PATHS: AniCompanion/Libraries/sherpa-onnx
 
 schemes:
   AniCompanion:
