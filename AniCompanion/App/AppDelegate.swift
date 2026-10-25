@@ -400,8 +400,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // showSettingsWindow: action in macOS 14 anyway). Host SettingsView ourselves.
         NSApp.activate(ignoringOtherApps: true)
         if settingsWindow == nil {
-            let vc = NSHostingController(rootView: SettingsView().environmentObject(appState))
-            let w = NSWindow(contentViewController: vc)
+            // `dismiss` is a no-op in this hand-built window, so SettingsView also gets an
+            // `onClose` that performs a real close (Save/Cancel wire into it).
+            let w = NSWindow()
+            w.contentViewController = NSHostingController(
+                rootView: SettingsView(onClose: { [weak w] in w?.performClose(nil) })
+                    .environmentObject(appState)
+            )
             w.title = String(localized: "Settings", comment: "Settings window title")
             w.styleMask = [.titled, .closable, .miniaturizable]
             w.isReleasedWhenClosed = false
