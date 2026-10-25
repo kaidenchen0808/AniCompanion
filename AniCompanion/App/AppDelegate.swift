@@ -318,17 +318,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     // The main character window is an NSPanel (for non-activating pet mode), and AppKit does NOT
     // count panels toward the "last window closed" check — so returning true here quit the whole
-    // app whenever an auxiliary window (Settings) closed. Return false and quit explicitly only
-    // when the *main* window closes (see windowWillClose), preserving "close the window = quit".
+    // app whenever an auxiliary window (Settings) closed. Return false: closing the windowed panel
+    // returns her to pet form (see windowShouldClose); quitting is ⌘Q only.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }
 
+    /// Closing the windowed panel doesn't quit — she goes back to pet form and keeps sitting
+    /// at the bottom-right. Quit is ⌘Q (standard menu) only.
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        guard sender === mainWindow, !isPetActive else { return true }
+        appState.petMode = true   // enterPet reshapes this same window; no actual close
+        return false
+    }
+
     func windowWillClose(_ notification: Notification) {
-        // Closing the main character window quits the app (matching normal window behavior);
-        // closing auxiliary windows like Settings does not. Pet mode never closes the window.
-        if (notification.object as? NSWindow) === mainWindow, !isPetActive {
-            NSApp.terminate(nil)
-        }
+        // Defensive only now: pet mode has no close button, and windowed close is vetoed in
+        // windowShouldClose. Keeps auxiliary windows (Settings) from ever quitting the app.
     }
 }
