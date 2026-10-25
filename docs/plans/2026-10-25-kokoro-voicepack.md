@@ -12,6 +12,12 @@
 
 **Worktree:** `/Users/chenxuewei/hb/anicompanion/.worktrees/kokoro-voicepack`，分支 `feature/kokoro-voicepack`，基线 `e0a1d05`。基线测试 21/21。
 
+⚠️ **Task 1 实证的结构修正（v1.13.8，后续 task 必读）：**
+- 选用 sherpa-onnx **v1.13.8**（v2.0 移除了内置音素化，中文文本合成不可用）；1.13 的 C 函数已是 **CamelCase**（`SherpaOnnxCreateOfflineTts` 等），Engine 已按实际头文件实现（用 `SherpaOnnxOfflineTtsGenerateWithConfig`）
+- kokoro 配置用 **`voices`（voices.bin 单文件）**而非 voices_dir；另需 `lexicon`（zh + us-en 两份）与可选 `lang` 提示；`data_dir`（espeak-ng-data）仍必需
+- **双 dylib 依赖**：libsherpa-onnx-c-api.dylib + libonnxruntime.dylib 都已 vendor 进 `Libraries/sherpa-onnx/` 并 embed（project.yml 写法：target `dependencies: - framework: <path> + embed: true`，每 dylib 一条；主 sources excludes 加 `"Libraries/**"`；`LIBRARY_SEARCH_PATHS` + 双 target 的 `SWIFT_INCLUDE_PATHS`）
+- **voicepack 关键文件因此定为**：`model.int8.onnx + tokens.txt + voices.bin + lexicon-zh.txt + lexicon-us-en.txt(可选) + espeak-ng-data/`（Task 2 的 isInstalled 按此校验；Task 3 声线 = generate 的 sid 0-7，顺序 xiaobei/xiaoni/xiaoxiao/xiaoyi/yunjian/yunxi/yunxia/yunyang）
+
 ⚠️ **已知陷阱（前次执行实证）：**
 - 新增 `.swift` 文件后必须 `xcodegen generate`（sources 是 generate 时快照，否则测试静默缺席假绿灯）；改 `project.yml` 后同样要 generate
 - 终端访问 GitHub 需显式代理：`export https_proxy=http://127.0.0.1:7897 http_proxy=http://127.0.0.1:7897`
