@@ -68,7 +68,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.hidesOnDeactivate = false
         window.title = String(localized: "AI Agent | Xiaoguang", comment: "Window title — character name")
         window.center()
-        let startInPet = appState.launchInPetMode
+        // …and skip pet-first-launch on a fresh install: the setup wizard lives in the
+        // windowed MainView (a sheet), and enterPet tears that view tree down mid-wizard.
+        // First run stays windowed; after setup completes, launches go straight to pet.
+        let startInPet = appState.launchInPetMode && appState.agentSetupCompleted
         if startInPet {
             // Hide the windowed form until pet mode is in place — the user sees her appear
             // at the bottom-right directly, never a 1000x650 window flashing by.
@@ -88,6 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self.isPetActive = petMode
                 self.appState.launchInPetMode = petMode   // remember the explicit choice
                 petMode ? self.enterPet(window) : self.exitPet(window)
+                if petMode { window.alphaValue = 1 }   // reveal only after enterPet reshaped the window
             }
 
         // Launch-as-pet: the webView only exists once MainView mounts (windowed form), so
@@ -98,7 +102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 .sink { [weak self] ready in
                     guard ready, let self, !self.isPetActive else { return }
                     self.appState.petMode = true
-                    self.mainWindow?.alphaValue = 1
+                    self.sceneReadyCancellable = nil   // fires once; drop the subscription
                 }
             // Fail-safe: if the scene never reports ready (odd webview failure), show the
             // windowed form after 3s instead of leaving the app invisible.
