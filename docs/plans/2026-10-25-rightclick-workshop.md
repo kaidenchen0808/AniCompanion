@@ -996,6 +996,7 @@ git commit -m "feat: settings — Mode & About sections, Character delegates to 
 | Couldn't import the model | 無法匯入模型 |
 | Couldn't delete the model | 無法刪除模型 |
 | Delete | 刪除 |
+| Delete “%@”? | 刪除「%@」？ |
 | Cancel | 取消 |
 | OK | 好 |
 
@@ -1038,6 +1039,7 @@ translations = {
         "匯入的模型存於 Application Support。Alicia Solid（© DWANGO）僅供個人使用。",
     "Couldn't import the model": "無法匯入模型",
     "Couldn't delete the model": "無法刪除模型",
+    "Delete “%@”?": "刪除「%@」？",
 }
 
 strings = catalog.setdefault("strings", {})
