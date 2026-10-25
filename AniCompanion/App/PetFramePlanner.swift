@@ -8,7 +8,11 @@ enum PetFramePlanner {
     /// Gap between her and the screen edge (QQ-pet style: hovering just above the Dock).
     static let margin: CGFloat = 8
 
+    /// Max share of the screen's dimensions she may occupy.
+    static let maxScreenCoverage: CGFloat = 0.9
+
     /// Bottom-right of `visible` (which must already exclude the menu bar + Dock).
+    /// Size must be finite and positive (the caller guarantees this).
     static func bottomRight(size: CGSize, in visible: CGRect) -> CGRect {
         let s = clamped(size: size, to: visible)
         return CGRect(x: visible.maxX - s.width - margin,
@@ -19,8 +23,8 @@ enum PetFramePlanner {
 
     /// Never let her exceed 90% of the screen's dimensions.
     static func clamped(size: CGSize, to visible: CGRect) -> CGSize {
-        CGSize(width: min(size.width, visible.width * 0.9),
-               height: min(size.height, visible.height * 0.9))
+        CGSize(width: min(size.width, visible.width * maxScreenCoverage),
+               height: min(size.height, visible.height * maxScreenCoverage))
     }
 
     /// Reject NaN / non-positive garbage from UserDefaults.
@@ -53,9 +57,11 @@ enum PetFramePlanner {
     }
 
     static func decode(_ s: String) -> CGRect? {
-        let parts = s.split(separator: ",").compactMap { Double($0) }
-        guard parts.count == 4 else { return nil }
-        let f = CGRect(x: parts[0], y: parts[1], width: parts[2], height: parts[3])
+        let raw = s.split(separator: ",")
+        guard raw.count == 4,
+              let x = Double(raw[0]), let y = Double(raw[1]),
+              let w = Double(raw[2]), let h = Double(raw[3]) else { return nil }
+        let f = CGRect(x: x, y: y, width: w, height: h)
         return isValid(f) ? f : nil
     }
 }

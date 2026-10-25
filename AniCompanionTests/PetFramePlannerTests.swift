@@ -88,5 +88,7 @@ final class PetFramePlannerTests: XCTestCase {
     func testFrameCoding_rejectsGarbageString() {
         XCTAssertNil(PetFramePlanner.decode("not,a,frame"))
         XCTAssertNil(PetFramePlanner.decode("1,2,3"))
+        XCTAssertNil(PetFramePlanner.decode("1,2,3,-4"))       // parses fine, negative size
+        XCTAssertNil(PetFramePlanner.decode("0,0,nan,300"))    // Double("nan") parses; isValid must catch it
     }
 }
