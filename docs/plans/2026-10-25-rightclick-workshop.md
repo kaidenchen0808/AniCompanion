@@ -980,12 +980,12 @@ git commit -m "feat: settings — Mode & About sections, Character delegates to 
 | Mode | 模式 |
 | Display Mode | 顯示模式 |
 | Companion | 陪伴模式 |
-| Quiet | 靜隱 |
+| Quiet | 靜隱模式 |
 | In Quiet mode she rests as a small translucent form at the bottom-right corner — no speech, no bubble. Click her to bring her back. | 靜隱模式下她會縮成半透明小身影待在螢幕右下角——不說話、不冒泡。點一下她就能喚回。 |
 | Manage Models… | 管理模型… |
 | Character Model | 角色模型 |
 | About | 關於 |
-| A desktop AI companion — she watches your work, chats, and keeps you company. | 桌面 AI 伴侶——她看著你工作、聊天、陪著你。 |
+| A desktop AI companion — she watches your work, chats, and keeps you company. | 桌面 AI 伴侶——她看著你工作、陪你聊天、也一直陪著你。 |
 | Character: AvatarSample (小光) © VRoid / Alicia Solid © DWANGO — downloaded separately; see ATTRIBUTION.md. | 角色：AvatarSample（小光）© VRoid / Alicia Solid © DWANGO——另行下載；詳見 ATTRIBUTION.md。 |
 | Rendering: three-vrm + three.js. Animations derived from Mixamo. | 渲染：three-vrm + three.js。動作動畫源自 Mixamo。 |
 | Import VRM… | 匯入 VRM… |
