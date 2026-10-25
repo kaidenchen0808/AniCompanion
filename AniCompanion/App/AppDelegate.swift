@@ -53,6 +53,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// tears down MainView, leaving SwiftUI's `openWindow` no scene anchor to act on.
     private var workshopWindow: NSWindow?
 
+    /// The Settings window, hand-built for the same reason as the workshop window: pet mode
+    /// tears down the SwiftUI tree, so the Settings scene's window is unreachable from the
+    /// context menu (and Apple removed the showSettingsWindow: action in macOS 14 anyway).
+    private var settingsWindow: NSWindow?
+
     /// Quiet form size (QQ-pet corner-sticker scale). Deliberately NOT configurable — the resting
     /// form is a fixed tiny size; her real size (`currentPetSize`) is restored on wake.
     private static let quietSize = NSSize(width: 80, height: 86)
@@ -380,7 +385,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let vc = NSHostingController(rootView: WorkshopView().environmentObject(appState))
             let w = NSWindow(contentViewController: vc)
             w.title = String(localized: "Pet Workshop", comment: "Workshop window title")
-            w.styleMask = [.titled, .closable, .miniaturizable]
+            w.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             w.isReleasedWhenClosed = false
             w.setContentSize(NSSize(width: 520, height: 420))
             w.center()
@@ -390,10 +395,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc private func openSettings() {
+        // Same story as the workshop window: pet mode tears down the SwiftUI tree, so the
+        // Settings scene's window is unreachable from here (and Apple removed the
+        // showSettingsWindow: action in macOS 14 anyway). Host SettingsView ourselves.
         NSApp.activate(ignoringOtherApps: true)
-        // The Settings window belongs to the SwiftUI Settings scene (⌘,); this AppKit action
-        // opens it without needing a SwiftUI anchor (which pet mode tears down).
-        NSApp.sendAction(NSSelectorFromString("showSettingsWindow:"), to: nil, from: nil)
+        if settingsWindow == nil {
+            let vc = NSHostingController(rootView: SettingsView().environmentObject(appState))
+            let w = NSWindow(contentViewController: vc)
+            w.title = String(localized: "Settings", comment: "Settings window title")
+            w.styleMask = [.titled, .closable, .miniaturizable]
+            w.isReleasedWhenClosed = false
+            w.setContentSize(NSSize(width: 480, height: 640))   // SettingsView's own fixed frame
+            w.center()
+            settingsWindow = w
+        }
+        settingsWindow?.makeKeyAndOrderFront(nil)
     }
 
     /// Which side of her face to place the speech bubble — the side with more room between her
