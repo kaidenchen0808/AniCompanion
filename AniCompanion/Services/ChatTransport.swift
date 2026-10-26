@@ -8,6 +8,12 @@ import Combine
 // conversation pipeline. (Renaming them is optional future tidy-up.)
 
 /// Outgoing messages from the client to the chat backend.
+/** Backend-specific extras with safe defaults. */
+extension ChatTransport {
+    /// Ask the gateway to kill the in-flight background lookup (companion-layer only).
+    func cancelLookup() {}
+}
+
 enum WSOutgoing: Sendable {
     /// A chat turn. `images` (JPEG data) are optional screen-vision frames attached to the final
     /// user message as OpenAI content-parts; empty for the normal text-only path.

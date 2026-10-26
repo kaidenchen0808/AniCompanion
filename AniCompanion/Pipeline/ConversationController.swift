@@ -53,6 +53,20 @@ final class ConversationController: ObservableObject {
     /// message's `thinking` field when the stream ends.
     @Published private(set) var thinkingText: String = ""
 
+    /// In-flight [lookup] background-query status (nil = idle). Drives the persistent
+    /// indicator above the input — set from the transport's status frames / poll field.
+    @Published private(set) var lookupStatusText: String?
+
+    func setLookupStatus(_ text: String?) {
+        lookupStatusText = text
+    }
+
+    /// User tapped ✕ on the indicator — ask the gateway to kill the background lookup.
+    func cancelLookup() {
+        lookupStatusText = nil
+        chatTransport.cancelLookup()
+    }
+
     /// UI-only: coalesces token deltas so Markdown re-parses stay smooth mid-stream.
     private lazy var streamThrottle = StreamThrottle { [weak self] delta in
         self?.streamingText += delta
@@ -826,7 +840,7 @@ final class ConversationController: ObservableObject {
         isStreaming = false
 
         // TTS + playback (same as chat pipeline, skip when TTS is disabled).
-        let speakable = MarkdownStripper.strip(rawResponse)
+        let speakable = MarkdownStripper.strippingSources(MarkdownStripper.strip(rawResponse))
         if ttsEnabled {
             let parser = await makeFedParser(for: speakable)
             try await runTTSPlayback(parser: parser, audioQueue: audioQueue, charController: charController)
@@ -929,7 +943,7 @@ final class ConversationController: ObservableObject {
         isStreaming = false
 
         // TTS + playback (non-fatal, skip when TTS is disabled).
-        let speakable = MarkdownStripper.strip(rawResponse)
+        let speakable = MarkdownStripper.strippingSources(MarkdownStripper.strip(rawResponse))
         if ttsEnabled {
             let parser = await makeFedParser(for: speakable)
             try await runTTSPlayback(parser: parser, audioQueue: audioQueue, charController: charController)

@@ -119,6 +119,34 @@ struct ChatView: View {
             Divider()
                 .background(Color.white.opacity(0.1))
 
+            // MARK: - Lookup 任务指示条（[lookup] 二段进行中：消灭等待黑洞）
+
+            if let status = conversationController.lookupStatusText {
+                HStack(spacing: 8) {
+                    Image(systemName: "sparkle.magnifyingglass")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.purple.opacity(0.9))
+                        .symbolEffect(.pulse)
+                    Text(status)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 8)
+                    Button {
+                        conversationController.cancelLookup()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary.opacity(0.7))
+                    }
+                            .buttonStyle(.plain)
+                            .help("取消查询")
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(0.05))
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+
             // MARK: - Skill chips（选中技能挂在输入框上）
 
             if !selectedSkills.isEmpty {

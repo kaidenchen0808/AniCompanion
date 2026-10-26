@@ -126,6 +126,17 @@ final class HTTPChatService: ObservableObject, ChatTransport {
         }
     }
 
+    func cancelLookup() {
+        guard let url = URL(string: baseURL + "/api/lookup/cancel") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 5
+        if !apiKey.isEmpty {
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
+        URLSession.shared.dataTask(with: request) { _, _, _ in }.resume()
+    }
+
     // MARK: - Notification Polling (backend push channel)
     //
     // The pipeline has a dormant `notify` path (`ConversationController.handleNotification`)
@@ -147,6 +158,8 @@ final class HTTPChatService: ObservableObject, ChatTransport {
 
     private struct NotificationsResponse: Codable {
         let notifications: [NotificationMessage]
+        /// Poll fallback for the WS `status` frames: her in-flight lookup, nil when idle.
+        let activeLookup: String?
     }
 
     /// Notify-pipeline entry shared by the 3s poll and the realtime WebSocket: each
@@ -166,6 +179,11 @@ final class HTTPChatService: ObservableObject, ChatTransport {
     /// Fires the animation clip attached to a backend-pushed say line (companion-layer
     /// touch/reaction reactions). Wired by `AppState` to the AnimationDirector.
     var onSayAnimation: ((String) -> Void)?
+
+    /// Lookup-task status (WS `status` frames + poll fallback): non-nil text = an
+    /// in-flight (or failed) background lookup she promised; nil = finished. Drives the
+    /// persistent indicator above the input.
+    var onLookupStatus: ((String?) -> Void)?
 
     private func startNotificationPolling() {
         guard notificationPollTask == nil, notificationsSupported else { return }
@@ -199,6 +217,8 @@ final class HTTPChatService: ObservableObject, ChatTransport {
                 for message in decoded.notifications {
                     emitNotification(id: message.id, text: message.text, animation: message.animation)
                 }
+                // Poll fallback for lookup status (WS `status` frames when connected)
+                onLookupStatus?(decoded.activeLookup)
                 // companion-layer 广告实时能力 → 升级 WebSocket 长连（纯网关无此头，永不触发）
                 upgradeToRealtimeIfAdvertised(http)
             case 404:
@@ -314,6 +334,12 @@ final class HTTPChatService: ObservableObject, ChatTransport {
             let id = object["id"] as? String ?? UUID().uuidString
             guard let content = object["text"] as? String, !content.isEmpty else { return }
             emitNotification(id: id, text: content, animation: object["animation"] as? String)
+        case "status":
+            // 代查任务状态（[lookup] 二段）：text 非 nil = 进行中/失败文案，nil = 结束
+            if object["status"] as? String == "lookup" {
+                let text = object["text"] as? String
+                onLookupStatus?(text)
+            }
         case "command":
             let action = object["action"] as? String ?? ""
             let payload = object["payload"] as? [String: Any]

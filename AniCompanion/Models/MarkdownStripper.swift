@@ -4,6 +4,13 @@ import Foundation
 /// Emotion tags ([happy] …) are NOT touched — SentenceParser extracts them downstream.
 enum MarkdownStripper {
 
+    /** Drop the trailing "---- 来源 ----" sources block (URLs are for the eyes,
+     *  never for TTS). No block → text unchanged. */
+    static func strippingSources(_ text: String) -> String {
+        guard let range = text.range(of: "---- 来源 ----") else { return text }
+        return String(text[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     static func strip(_ text: String) -> String {
         var s = text
         // Fenced code blocks (closed) → short spoken placeholder; keep language-free.

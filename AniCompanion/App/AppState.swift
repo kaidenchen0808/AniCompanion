@@ -291,6 +291,7 @@ final class AppState: ObservableObject {
         if let http = ws as? HTTPChatService {
             characterManager.onTouch = { [weak http] part in http?.reportTouch(part) }
             http.onSayAnimation = { [weak animationDirector] name in animationDirector?.playServer(name) }
+            http.onLookupStatus = { [weak self] text in self?.conversationController?.setLookupStatus(text) }
         }
 
         // Observe connection state.
