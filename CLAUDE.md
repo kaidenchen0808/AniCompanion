@@ -533,7 +533,15 @@ configurable VRM model (Pet Workshop — import/switch/delete, instant apply), d
 menu, and a **quiet** resting form — small, translucent, bottom-right, pushed notifications
 dropped), opt-in **live transcription** (system audio → on-device Apple STT →
 live captions in the pet bubble / a caption overlay, display-only; opt-in **translate mode** —
-on-device Apple Translation per finalized segment, dual-line original + translation).
+on-device Apple Translation per finalized segment, dual-line original + translation),
+**Doubao-style chat** (v0.10.0): assistant replies rendered as Markdown via MarkdownUI
+(dark code blocks + copy button), ~120/240 ms stream throttling (`StreamThrottle`),
+TTS speaks `MarkdownStripper`-stripped text with per-segment emotion attribution
+(`EmotionSegmenter`), stop generation (half-replies stay in history) / regenerate /
+copy message actions, JSONL-persisted history (`HistoryStore` — restart restore, day
+separators, top-of-list paging, clear + per-message delete), and a multi-line input
+(Enter sends, Shift+Enter newline, 1–6 auto-grow lines; IME-candidate-Enter caveat
+noted in ChatView).
 
 Not yet done / deferred:
 - Live transcription Phase 3 (opt-in spoken dubbing with capture-gating; per-app capture scope;
