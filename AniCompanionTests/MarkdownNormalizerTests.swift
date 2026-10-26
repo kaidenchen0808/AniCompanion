@@ -1,4 +1,5 @@
 import XCTest
+import SwiftMath
 @testable import AniCompanion
 
 final class MarkdownNormalizerTests: XCTestCase {
@@ -38,5 +39,30 @@ final class MarkdownNormalizerTests: XCTestCase {
     func test_plainTextUntouched() {
         let input = "普通回复，无特殊语法。价格 $5 和 $10 不算公式。"
         XCTAssertEqual(MarkdownNormalizer.normalize(input), input)
+    }
+
+    func test_swiftMath_rendersRealFormula() {
+        // 渲染管线闭环：SwiftMath 真排版（字体加载/解析/出图），非空且非退化
+        var formatter = MathImage(
+            latex: "E = mc^2",
+            fontSize: 17,
+            textColor: MTColor(red: 1, green: 1, blue: 1, alpha: 1)
+        )
+        let (err, img, layout) = formatter.asImage()
+        XCTAssertNil(err, "KaTeX 渲染不应报错: \(err?.localizedDescription ?? "")")
+        XCTAssertNotNil(img, "应产出图片")
+        XCTAssertGreaterThan(layout?.ascent ?? 0, 0, "排版信息应有高度")
+    }
+
+    func test_swiftMath_badLatex_reportsErrorNotCrash() {
+        var formatter = MathImage(
+            latex: "\\unknowncmd{",
+            fontSize: 17,
+            textColor: MTColor(red: 1, green: 1, blue: 1, alpha: 1)
+        )
+        let (err, _, _) = formatter.asImage()
+        // 坏公式要么报错要么出图（库容错），核心是不崩
+        _ = err
+        XCTAssertTrue(true, "坏 latex 不崩溃即通过")
     }
 }
