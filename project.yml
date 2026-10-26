@@ -10,7 +10,7 @@ options:
 packages:
   MarkdownUI:
     url: https://github.com/gonzalezreal/swift-markdown-ui
-    exactVersion: "0.5.2"
+    exactVersion: "2.4.0"
 
 settings:
   base:
