@@ -451,6 +451,8 @@ final class HTTPChatService: ObservableObject, ChatTransport {
                 }
                 if let content = Self.parseDeltaContent(payload) {
                     eventsContinuation.yield(.token(ref: ref, content: content, source: "chat"))
+                } else if let reasoning = Self.parseDeltaReasoning(payload) {
+                    eventsContinuation.yield(.reasoning(ref: ref, content: reasoning))
                 }
             }
 
@@ -482,6 +484,20 @@ final class HTTPChatService: ObservableObject, ChatTransport {
             return nil
         }
         return content
+    }
+
+    /// Extracts `choices[0].delta.reasoning_content` (the model's thinking stream,
+    /// DeepSeek-style convention emitted by companion-layer's claude-code brain).
+    private static func parseDeltaReasoning(_ json: String) -> String? {
+        guard let data = json.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let choices = object["choices"] as? [[String: Any]],
+              let delta = choices.first?["delta"] as? [String: Any],
+              let reasoning = delta["reasoning_content"] as? String,
+              !reasoning.isEmpty else {
+            return nil
+        }
+        return reasoning
     }
 
     /// Produce the JSON-ready `messages` array. Without images this is the plain text path

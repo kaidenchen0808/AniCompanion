@@ -24,6 +24,9 @@ enum WSOutgoing: Sendable {
 enum WSIncoming: Sendable {
     case welcome(session: String)
     case token(ref: String, content: String, source: String)
+    /// Reasoning-stream delta (`delta.reasoning_content`, DeepSeek-style convention) — the
+    /// model's thinking, shown in a collapsible panel; never mixed into reply text or TTS.
+    case reasoning(ref: String, content: String)
     case done(ref: String, source: String)
     case error(ref: String?, message: String)
     case notify(ref: String, source: String)

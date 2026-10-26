@@ -45,8 +45,8 @@ final class ConversationHistory: ObservableObject {
         addMessage(ChatMessage(role: .user, content: content, isHidden: isHidden))
     }
 
-    func addAssistantMessage(_ content: String) {
-        addMessage(ChatMessage(role: .assistant, content: content))
+    func addAssistantMessage(_ content: String, thinking: String? = nil) {
+        addMessage(ChatMessage(role: .assistant, content: content, thinking: thinking))
     }
 
     func addSystemMessage(_ content: String) {

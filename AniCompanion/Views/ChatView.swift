@@ -53,8 +53,11 @@ struct ChatView: View {
                         // as soon as the response text is committed, rather than lingering through
                         // TTS playback while 小光 is still speaking.
                         if conversationController.isStreaming {
-                            AssistantProcessingView(streamingText: conversationController.streamingText)
-                                .id("typing-indicator")
+                            AssistantProcessingView(
+                                streamingText: conversationController.streamingText,
+                                thinkingText: conversationController.thinkingText
+                            )
+                            .id("typing-indicator")
                         }
                     }
                     // Entrance animation on NEW messages only (last-id keyed — top-paging
@@ -331,6 +334,10 @@ private struct MessageBubbleView: View {
             }
 
             VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
+                if !isUser, let thinking = message.thinking, !thinking.isEmpty {
+                    ThinkingPanel(text: thinking, isThinking: false)
+                }
+
                 if isUser {
                     Text(message.displayContent)
                         .font(.system(size: 14))
@@ -451,6 +458,9 @@ private struct MessageBubbleView: View {
 private struct AssistantProcessingView: View {
 
     let streamingText: String
+    /// Live reasoning stream — shown in an expandable panel ABOVE the bubble (thinking
+    /// arrives before the reply text; the dots stay visible while only thinking exists).
+    var thinkingText: String = ""
 
     @State private var animating = false
 
@@ -466,46 +476,126 @@ private struct AssistantProcessingView: View {
                 .frame(width: 24, height: 24)
                 .padding(.top, 4)
 
-            if cleanedText.isEmpty {
-                // Typing dots — waiting for first token
-                HStack(spacing: 4) {
-                    ForEach(0..<3, id: \.self) { index in
-                        Circle()
-                            .fill(Color.white.opacity(0.5))
-                            .frame(width: 6, height: 6)
-                            .offset(y: animating ? -4 : 0)
-                            .animation(
-                                .easeInOut(duration: 0.5)
-                                    .repeatForever()
-                                    .delay(Double(index) * 0.15),
-                                value: animating
-                            )
+            VStack(alignment: .leading, spacing: 6) {
+                if !thinkingText.isEmpty {
+                    ThinkingPanel(text: thinkingText, isThinking: true)
+                }
+
+                if cleanedText.isEmpty {
+                    // Typing dots — waiting for first token
+                    HStack(spacing: 4) {
+                        ForEach(0..<3, id: \.self) { index in
+                            Circle()
+                                .fill(Color.white.opacity(0.5))
+                                .frame(width: 6, height: 6)
+                                .offset(y: animating ? -4 : 0)
+                                .animation(
+                                    .easeInOut(duration: 0.5)
+                                        .repeatForever()
+                                        .delay(Double(index) * 0.15),
+                                    value: animating
+                                )
+                        }
                     }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color.white.opacity(0.1))
+                    )
+                } else {
+                    // Live streaming text + blinking tail cursor
+                    VStack(alignment: .trailing, spacing: 2) {
+                        MarkdownView(text: cleanedText, textSelectionEnabled: false)
+                        StreamingCursor()
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color.white.opacity(0.1))
+                    )
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 14)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.white.opacity(0.1))
-                )
-            } else {
-                // Live streaming text + blinking tail cursor
-                VStack(alignment: .trailing, spacing: 2) {
-                    MarkdownView(text: cleanedText, textSelectionEnabled: false)
-                    StreamingCursor()
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.white.opacity(0.1))
-                )
             }
 
             Spacer(minLength: 40)
         }
         .onAppear {
             animating = true
+        }
+    }
+}
+
+// MARK: - Thinking Panel
+
+/// Collapsible reasoning panel (Doubao-style). Live: "思考中…" expanded with a pulsing
+/// brain icon; settled on a message: "思考过程" collapsed by default.
+private struct ThinkingPanel: View {
+
+    let text: String
+    var isThinking: Bool
+
+    @State private var expanded: Bool
+    @State private var pulsing = false
+
+    init(text: String, isThinking: Bool) {
+        self.text = text
+        self.isThinking = isThinking
+        // Live panels start expanded (watch her think in real time); committed ones collapsed.
+        _expanded = State(initialValue: isThinking)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    expanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "brain")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.purple.opacity(pulsing ? 0.9 : 0.45))
+                    Text(isThinking ? "思考中…" : "思考过程")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary.opacity(0.6))
+                        .rotationEffect(.degrees(expanded ? 180 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if expanded {
+                ScrollView {
+                    Text(text)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary.opacity(0.85))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                }
+                .frame(maxHeight: 160)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.white.opacity(0.05))
+                )
+                .transition(.opacity)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.white.opacity(0.06))
+        )
+        .onAppear {
+            guard isThinking else { return }
+            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                pulsing = true
+            }
         }
     }
 }

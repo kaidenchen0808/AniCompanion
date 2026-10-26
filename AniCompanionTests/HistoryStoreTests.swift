@@ -97,4 +97,31 @@ final class HistoryStoreTests: XCTestCase {
             "default path should live in App Support/AniCompanion, got \(store.fileURL.path)"
         )
     }
+
+    func test_thinkingField_roundTrip() {
+        let url = dir.appendingPathComponent("history.jsonl")
+        let store = HistoryStore(fileURL: url)
+        let withThinking = ChatMessage(role: .assistant, content: "答案", thinking: "推理过程...")
+        let without = ChatMessage(role: .user, content: "问题")
+        store.append(withThinking)
+        store.append(without)
+        let loaded = store.loadLast(10)
+        XCTAssertEqual(loaded.first?.thinking, "推理过程...")
+        XCTAssertNil(loaded.last?.thinking)
+    }
+
+    func test_legacyLineWithoutThinkingKey_decodesWithNilThinking() {
+        // P2 时代的历史行没有 thinking 键 —— Optional synthesized decode 用
+        // decodeIfPresent，缺键必须容错（否则升级后全部旧记录读不出来）。
+        let url = dir.appendingPathComponent("history.jsonl")
+        let legacy = """
+        {"id":"8F2A0E21-1111-2222-3333-444455556666","role":"assistant","content":"旧回复","timestamp":700000000,"isHidden":false}
+        """
+        try! legacy.data(using: .utf8)!.write(to: url)
+        let store = HistoryStore(fileURL: url)
+        let loaded = store.loadLast(10)
+        XCTAssertEqual(loaded.count, 1)
+        XCTAssertEqual(loaded.first?.content, "旧回复")
+        XCTAssertNil(loaded.first?.thinking)
+    }
 }

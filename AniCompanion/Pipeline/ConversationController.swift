@@ -48,6 +48,11 @@ final class ConversationController: ObservableObject {
     /// Live streaming text from the LLM, shown token-by-token in the chat UI.
     @Published private(set) var streamingText: String = ""
 
+    /// Live reasoning stream (`delta.reasoning_content`) shown in a collapsible panel.
+    /// Arrives as whole blocks (no throttle needed); cleared per turn, settled into the
+    /// message's `thinking` field when the stream ends.
+    @Published private(set) var thinkingText: String = ""
+
     /// UI-only: coalesces token deltas so Markdown re-parses stay smooth mid-stream.
     private lazy var streamThrottle = StreamThrottle { [weak self] delta in
         self?.streamingText += delta
@@ -666,6 +671,11 @@ final class ConversationController: ObservableObject {
                 notifyContinuation?.yield(content)
             }
 
+        case .reasoning(let ref, let content):
+            if ref == currentChatRef || ref == currentNotifyRef {
+                thinkingText += content
+            }
+
         case .done(let ref, _):
             if ref == currentChatRef {
                 tokenContinuation?.finish()
@@ -776,6 +786,7 @@ final class ConversationController: ObservableObject {
     /// Process a notification's token stream through the TTS+playback pipeline.
     private func runNotificationPipeline(tokenStream: AsyncThrowingStream<String, Error>) async throws {
         streamThrottle.reset()
+        thinkingText = ""
         let audioQueue = AudioQueue()
         let pipelineState = PipelineState()
         let charController = characterController
@@ -796,7 +807,9 @@ final class ConversationController: ObservableObject {
             }
         } catch is CancellationError {
             // 停止生成：半截话保留入历史（豆包同款），再向上抛给外层 catch flush 上屏。
-            if !response.isEmpty { history.addAssistantMessage(response) }
+            if !response.isEmpty {
+                history.addAssistantMessage(response, thinking: thinkingText.isEmpty ? nil : thinkingText)
+            }
             throw CancellationError()
         }
         await pipelineState.setRawResponse(response)
@@ -806,7 +819,7 @@ final class ConversationController: ObservableObject {
         let rawResponse = await pipelineState.getRawResponse()
         Log.pipeline("[Pipeline] Notification response received (\(rawResponse.count) chars)")
         if !rawResponse.isEmpty {
-            history.addAssistantMessage(rawResponse)
+            history.addAssistantMessage(rawResponse, thinking: thinkingText.isEmpty ? nil : thinkingText)
         }
         streamThrottle.flush()
         streamingText = ""
@@ -828,6 +841,7 @@ final class ConversationController: ObservableObject {
     /// The core pipeline: send chat via the transport -> parse sentences -> TTS in parallel -> play in order.
     private func runPipeline(suppressSilentResponse: Bool = false) async throws {
         streamThrottle.reset()
+        thinkingText = ""
         var contextMessages = buildMessagesWithSystemPrompt()
 
         // "Watching together": while live transcription runs, slip the recent transcript in as a
@@ -886,7 +900,9 @@ final class ConversationController: ObservableObject {
             }
         } catch is CancellationError {
             // 停止生成：半截话保留入历史（豆包同款），再向上抛给外层 catch flush 上屏。
-            if !response.isEmpty { history.addAssistantMessage(response) }
+            if !response.isEmpty {
+                history.addAssistantMessage(response, thinking: thinkingText.isEmpty ? nil : thinkingText)
+            }
             throw CancellationError()
         }
         await pipelineState.setRawResponse(response)
@@ -906,7 +922,7 @@ final class ConversationController: ObservableObject {
         }
 
         if !rawResponse.isEmpty {
-            history.addAssistantMessage(rawResponse)
+            history.addAssistantMessage(rawResponse, thinking: thinkingText.isEmpty ? nil : thinkingText)
         }
         streamThrottle.flush()
         streamingText = ""
