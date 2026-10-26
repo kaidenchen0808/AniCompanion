@@ -9,6 +9,9 @@ and downloaded **assets** below are third-party works under their own terms, **n
 | ---------- | ------- | ------ | ------------- |
 | [@pixiv/three-vrm](https://github.com/pixiv/three-vrm) | MIT | pixiv | VRM loading/rendering in the WKWebView scene; loaded via CDN (jsDelivr) in `vrm_scene.js`. |
 | [three.js](https://github.com/mrdoob/three.js) | MIT | three.js authors | WebGL engine underlying three-vrm; loaded via CDN (jsDelivr). |
+| [MarkdownUI](https://github.com/gonzalezreal/swift-markdown-ui) | MIT | Guillermo Gonzalez | Assistant-reply Markdown rendering (SPM). |
+| [SwiftMath](https://github.com/mgriebling/SwiftMath) | MIT | Marc Griebling (from iosMath, Karel Störann's KaTeX-derived layout) | Block LaTeX formula rendering (SPM, bundled KaTeX-style fonts). |
+| [Highlightr](https://github.com/raspu/Highlightr) | MIT | IllusionofChaos | Code-block syntax highlighting via highlight.js (SPM, bundled highlight.min.js). |
 
 Runtime services the app talks to (not bundled): a local **[Hermes Agent](https://github.com/NousResearch/hermes-agent)**
 gateway (MIT) for chat, and **MiniMax** Speech-02-Turbo for TTS (the user supplies their own

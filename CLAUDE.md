@@ -29,10 +29,15 @@ macOS desktop AI character app with VRM 3D character rendering, LLM chat, TTS sp
   chat turn, so a multimodal model can "see the screen." Needs a vision-capable model + macOS Screen
   Recording permission.
 - **Audio**: AVAudioEngine + AVAudioPlayerNode
-- **Dependencies**: one SPM package — MarkdownUI 2.4.0 (exact-pinned in project.yml) renders
-  assistant chat replies as Markdown (dark theme + code-block copy button, `Views/MarkdownView.swift`).
-  First resolve needs the proxy (`export https_proxy=http://127.0.0.1:7897`). three-vrm + three.js
-  still load via CDN import maps; networking via URLSession, audio via AVFoundation. See `ATTRIBUTION.md`.
+- **Dependencies**: three SPM packages (all exact-pinned in project.yml) —
+  **MarkdownUI 2.4.0** (assistant replies as Markdown: dark theme, images via custom
+  `AniImageProvider` http/file/data-URI, file cards + Quick Look, `Views/MarkdownView.swift`);
+  **SwiftMath 1.7.3** (block LaTeX `$$..$$` → ```math fence → `MathBlockView`, KaTeX fonts
+  bundled — Release bundle verified); **Highlightr 2.2.0** (fenced code-block syntax
+  highlighting, atom-one-dark, `CodeBlockView`). Watch the `MarkdownUI.Theme` vs
+  `Highlightr.Theme` name clash (qualify explicitly). First resolve needs the proxy
+  (`export https_proxy=http://127.0.0.1:7897`). three-vrm + three.js still load via CDN
+  import maps; networking via URLSession, audio via AVFoundation. See `ATTRIBUTION.md`.
 
 ## Project Structure
 
