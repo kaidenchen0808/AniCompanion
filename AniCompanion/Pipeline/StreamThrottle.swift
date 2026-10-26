@@ -13,7 +13,10 @@ final class StreamThrottle {
 
     private let onEmit: (String) -> Void
     private var buffer = ""
-    private var lastEmit: Date?
+    /// Monotonic clock — immune to NTP wall-clock steps, unlike `Date()`.
+    private var lastEmit: ContinuousClock.Instant?
+    // Known benign race: a late-waking stale task can clear a newer pending reference
+    // and emit one batch early (≤ one interval). Fixing needs a generation token — not worth it.
     private var pending: Task<Void, Never>?
     private var totalLength = 0
 
@@ -27,7 +30,7 @@ final class StreamThrottle {
         guard !delta.isEmpty else { return }
         buffer += delta
         totalLength += delta.count
-        if let last = lastEmit, Date().timeIntervalSince(last) < currentInterval {
+        if let last = lastEmit, ContinuousClock.now - last < Duration.seconds(currentInterval) {
             guard pending == nil else { return }
             let delay = currentInterval
             pending = Task { [weak self] in
@@ -60,7 +63,7 @@ final class StreamThrottle {
         guard !buffer.isEmpty else { return }
         let out = buffer
         buffer = ""
-        lastEmit = Date()
+        lastEmit = ContinuousClock.now
         onEmit(out)
     }
 }
