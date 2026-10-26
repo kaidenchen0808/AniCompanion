@@ -557,6 +557,21 @@ TTS, or context.
 `PanelDivider` (8pt hit area, ↔ cursor, gesture-base+translation mapping to avoid
 high-frequency re-accumulation) persists `main_chat_ratio` in @AppStorage (Double →
 CGFloat bridge; defensive clamp against dirty stored values).
+**Rich media rendering** (v0.11.0–0.12.3): images from http/`file://`/data-URI
+(`AniImageProvider`, 8 MB cap, rounded, loading/failed states); local file paths in
+replies → icon cards → Quick Look (`QLPreviewView` in a sheet — avoids the panel's
+responder-chain dance); block LaTeX `$$..$$` → `MarkdownNormalizer` (render-layer only —
+copy preserves the original) → ```math fence → SwiftMath `MathBlockView` (fallback:
+monospace literal); `==highlight==`→bold, `<b>/<i>`→markdown, `<br>`→newline (in
+`displayContent`); soft breaks render as line breaks (`.lineBreak` — the default `.space`
+mushes Chinese one-sentence-per-line replies into a blob); syntax-highlighted code blocks
+(Highlightr, atom-one-dark, language label + copy button, plain-text fallback).
+**`/` skill picker** (v0.12.0): typing `/` at line start opens a panel over all
+`~/.claude/skills` entries (`SkillStore` frontmatter scan), filtered as you type,
+↑↓/Enter/Esc keyboard flow, multi-select chips; selected skills ride the chat request's
+`skills` field and companion-layer injects them into the persona system prompt for that
+turn only (never into history/facts — prompt injection, NOT execution; her hands stay
+read-only).
 
 Not yet done / deferred:
 - Live transcription Phase 3 (opt-in spoken dubbing with capture-gating; per-app capture scope;
