@@ -18,6 +18,7 @@ struct MarkdownView: View {
     private var base: some View {
         Markdown(text)
             .markdownTheme(.aniCompanion)
+            .markdownImageProvider(.ani)
     }
 }
 
@@ -42,6 +43,15 @@ extension Theme {
         }
         .codeBlock { configuration in
             CodeBlockView(code: configuration.content)
+        }
+        .image { configuration in
+            // Rounded block-level images (http + file:// both arrive via AniImageProvider)
+            configuration.label
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
         }
         .listItem { configuration in
             configuration.label
