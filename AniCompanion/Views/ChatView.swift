@@ -41,7 +41,8 @@ struct ChatView: View {
                             MessageBubbleView(
                                 message: message,
                                 isLastAssistant: message.role == .assistant && message.id == visibleMessages.last?.id,
-                                onRegenerate: { Task { await conversationController.regenerate() } }
+                                onRegenerate: { Task { await conversationController.regenerate() } },
+                                onDelete: { conversationHistory.removeById(message.id) }
                             )
                             .id(message.id)
                         }
@@ -271,6 +272,7 @@ private struct MessageBubbleView: View {
     /// Regeneration is offered only on the very last assistant message.
     var isLastAssistant: Bool = false
     var onRegenerate: (() -> Void)? = nil
+    var onDelete: (() -> Void)? = nil
 
     @State private var hovering = false
     @State private var copied = false
@@ -349,6 +351,12 @@ private struct MessageBubbleView: View {
                     } label: {
                         Label("Regenerate", systemImage: "arrow.clockwise")
                     }
+                }
+                Divider()
+                Button(role: .destructive) {
+                    onDelete?()
+                } label: {
+                    Label("Delete", systemImage: "trash")
                 }
             }
 

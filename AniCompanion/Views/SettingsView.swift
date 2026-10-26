@@ -38,6 +38,8 @@ struct SettingsView: View {
     @State private var openAITTSSpeed: Double = 1.0
     @State private var appleTTSVoiceIdentifier: String = AppleTTSService.autoVoiceIdentifier
     @State private var appleTTSRate: Double = AppleTTSService.defaultRate
+    /// Chat-history clear flow (Settings → Chat → Clear…; confirmation dialog then wipes disk + memory).
+    @State private var showClearHistoryConfirm = false
     @State private var ttsVoiceID: String = "Chinese (Mandarin)_Crisp_Girl"
     @State private var ttsEnabled: Bool = true
     @State private var sttProvider: STTProvider = .apple
@@ -760,6 +762,36 @@ struct SettingsView: View {
                                     }
                                 }
                             }
+                        }
+                    }
+
+                    // MARK: Section: Chat History
+
+                    SettingsSection(title: "Chat", icon: "bubble.left.and.bubble.right.fill") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Button(role: .destructive) {
+                                showClearHistoryConfirm = true
+                            } label: {
+                                Label("Clear Chat History…", systemImage: "trash")
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.red)
+
+                            Text("Deletes every message in the chat window. Her memory on the server is unaffected.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .confirmationDialog(
+                            "Delete all chat history?",
+                            isPresented: $showClearHistoryConfirm,
+                            titleVisibility: .visible
+                        ) {
+                            Button("Delete All History", role: .destructive) {
+                                appState.conversationHistory.clear()
+                            }
+                            Button("Cancel", role: .cancel) {}
+                        } message: {
+                            Text("This cannot be undone. Her memory on the server is unaffected.")
                         }
                     }
 
