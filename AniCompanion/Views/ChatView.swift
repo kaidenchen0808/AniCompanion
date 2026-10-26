@@ -45,6 +45,7 @@ struct ChatView: View {
                                 onDelete: { conversationHistory.removeById(message.id) }
                             )
                             .id(message.id)
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
                         }
 
                         // Streaming text or typing indicator (single view type for LazyVStack stability).
@@ -56,6 +57,9 @@ struct ChatView: View {
                                 .id("typing-indicator")
                         }
                     }
+                    // Entrance animation on NEW messages only (last-id keyed — top-paging
+                    // prepends and mid-list deletions deliberately don't animate).
+                    .animation(.easeOut(duration: 0.18), value: conversationHistory.messages.last?.id)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 16)
                 }
@@ -485,14 +489,17 @@ private struct AssistantProcessingView: View {
                         .fill(Color.white.opacity(0.1))
                 )
             } else {
-                // Live streaming text
-                MarkdownView(text: cleanedText, textSelectionEnabled: false)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(Color.white.opacity(0.1))
-                    )
+                // Live streaming text + blinking tail cursor
+                VStack(alignment: .trailing, spacing: 2) {
+                    MarkdownView(text: cleanedText, textSelectionEnabled: false)
+                    StreamingCursor()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.white.opacity(0.1))
+                )
             }
 
             Spacer(minLength: 40)
@@ -500,6 +507,26 @@ private struct AssistantProcessingView: View {
         .onAppear {
             animating = true
         }
+    }
+}
+
+// MARK: - Streaming Cursor
+
+/// Blinking caret shown at the tail of the streaming bubble (Doubao-style "still typing").
+private struct StreamingCursor: View {
+
+    @State private var visible = true
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 1)
+            .fill(Color.white.opacity(0.85))
+            .frame(width: 2, height: 14)
+            .opacity(visible ? 1 : 0.15)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 0.55).repeatForever(autoreverses: true)) {
+                    visible = false
+                }
+            }
     }
 }
 
