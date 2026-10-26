@@ -542,6 +542,16 @@ copy message actions, JSONL-persisted history (`HistoryStore` — restart restor
 separators, top-of-list paging, clear + per-message delete), and a multi-line input
 (Enter sends, Shift+Enter newline, 1–6 auto-grow lines; IME-candidate-Enter caveat
 noted in ChatView).
+**Reasoning panel** (v0.10.1): the brain's thinking streams via `delta.reasoning_content`
+(`WSIncoming.reasoning` → `thinkingText`, whole-block or incremental) into a collapsible
+💭 panel — live "思考中…" expanded, settled "思考过程" collapsed on the message, persisted
+in `ChatMessage.thinking` (JSONL-tolerated optional key); never mixed into reply text,
+TTS, or context.
+**QQ-style layout** (v0.10.2/3): chat on the LEFT (elastic, default 68% via
+`PanelLayout.defaultRatio`, band 30–70%) and the character on the RIGHT — a draggable
+`PanelDivider` (8pt hit area, ↔ cursor, gesture-base+translation mapping to avoid
+high-frequency re-accumulation) persists `main_chat_ratio` in @AppStorage (Double →
+CGFloat bridge; defensive clamp against dirty stored values).
 
 Not yet done / deferred:
 - Live transcription Phase 3 (opt-in spoken dubbing with capture-gating; per-app capture scope;
