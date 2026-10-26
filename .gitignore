@@ -17,7 +17,8 @@ build/
 .build/
 Packages/
 Package.pins
-# No SPM packages currently — Package.resolved carries nothing to pin, so it's ignored.
+# Package.resolved lives inside the generated xcodeproj (not committed);
+# versions are pinned via exactVersion in project.yml.
 Package.resolved
 
 # CocoaPods
