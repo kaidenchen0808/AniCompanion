@@ -115,8 +115,8 @@ final class HTTPChatService: ObservableObject, ChatTransport {
 
     func send(_ message: WSOutgoing) async throws {
         switch message {
-        case .chat(let id, let messages, let images):
-            startChat(ref: id, messages: messages, images: images)
+        case .chat(let id, let messages, let images, let skills):
+            startChat(ref: id, messages: messages, images: images, skills: skills)
         case .cancel(let ref):
             activeTasks[ref]?.cancel()
             activeTasks[ref] = nil
@@ -381,17 +381,17 @@ final class HTTPChatService: ObservableObject, ChatTransport {
 
     // MARK: - Streaming Chat
 
-    private func startChat(ref: String, messages: [[String: String]], images: [Data]) {
+    private func startChat(ref: String, messages: [[String: String]], images: [Data], skills: [[String: String]]) {
         // Replace any prior request reusing this ref.
         activeTasks[ref]?.cancel()
         let task = Task { [weak self] in
-            await self?.streamChat(ref: ref, messages: messages, images: images)
+            await self?.streamChat(ref: ref, messages: messages, images: images, skills: skills)
             self?.activeTasks[ref] = nil
         }
         activeTasks[ref] = task
     }
 
-    private func streamChat(ref: String, messages: [[String: String]], images: [Data]) async {
+    private func streamChat(ref: String, messages: [[String: String]], images: [Data], skills: [[String: String]]) async {
         guard let url = URL(string: baseURL + "/v1/chat/completions") else {
             eventsContinuation.yield(.error(ref: ref, message: "Invalid \(serviceName) endpoint URL: \(baseURL)"))
             return
@@ -405,7 +405,10 @@ final class HTTPChatService: ObservableObject, ChatTransport {
             request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         }
 
-        let body: [String: Any] = ["model": model, "messages": Self.encodeMessages(messages, images: images), "stream": true]
+        var body: [String: Any] = ["model": model, "messages": Self.encodeMessages(messages, images: images), "stream": true]
+        if !skills.isEmpty {
+            body["skills"] = skills  // / 技能面板选中项，网关拼进人格 system（不落库）
+        }
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
         } catch {

@@ -319,9 +319,14 @@ struct ChatView: View {
         guard !text.isEmpty else { return }
 
         inputText = ""
+        skillPanelVisible = false
+
+        // / 技能面板选中项 → [{name, content}]（SKILL.md 正文，网关截断兜底）
+        let skills = selectedSkills.map { ["name": $0.name, "content": SkillStore.loadBody(for: $0)] }
+        selectedSkills.removeAll()
 
         Task {
-            await conversationController.sendMessage(text)
+            await conversationController.sendMessage(text, skills: skills)
         }
     }
 

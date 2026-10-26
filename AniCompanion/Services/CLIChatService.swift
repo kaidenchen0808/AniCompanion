@@ -237,7 +237,7 @@ final class CLIChatService: ObservableObject, ChatTransport {
 
     func send(_ message: WSOutgoing) async throws {
         switch message {
-        case .chat(let id, let messages, _):
+        case .chat(let id, let messages, _, _):
             // Images (screen vision) aren't wired for CLI backends yet — text path only.
             startChat(ref: id, messages: messages)
         case .cancel(let ref):

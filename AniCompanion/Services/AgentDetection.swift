@@ -186,7 +186,7 @@ enum AgentDetector {
             ["role": "user", "content": "Say hi"],
         ]
         do {
-            try await transport.send(.chat(id: "setup-probe", messages: messages, images: []))
+            try await transport.send(.chat(id: "setup-probe", messages: messages, images: [], skills: []))
         } catch {
             return .failure(error.localizedDescription)
         }
