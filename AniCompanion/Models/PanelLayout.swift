@@ -4,9 +4,10 @@ import Foundation
 /// Kept free of SwiftUI so the clamping rules are unit-testable.
 enum PanelLayout {
 
-    /// Chat panel's share of the window width. 58% default → she keeps ≈378pt at the
-    /// 900pt minimum window (above her 300pt floor).
-    static let defaultRatio: CGFloat = 0.58
+    /// Chat panel's share of the window width. 68% default (chat-dominant, QQ style)
+    /// → she keeps ≈285pt at the 900pt minimum window; her 300pt `minWidth` floor
+    /// wins in HStack arbitration, nudging chat back a hair — acceptable.
+    static let defaultRatio: CGFloat = 0.68
     static let minRatio: CGFloat = 0.30
     static let maxRatio: CGFloat = 0.70
 
