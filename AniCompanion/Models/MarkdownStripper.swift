@@ -10,6 +10,7 @@ enum MarkdownStripper {
         s = s.replacingOccurrences(of: #"(?s)```[^\n`]*\n.*?```"#, with: "\n（代码）\n", options: .regularExpression)
         s = s.replacingOccurrences(of: #"(?s)~~~[^\n]*\n.*?~~~"#, with: "\n（代码）\n", options: .regularExpression)
         // Unclosed fence (stream cut mid-block): drop from the fence to the end.
+        // Must run AFTER the closed-fence rule above — any ``` remaining here is unclosed by definition.
         s = s.replacingOccurrences(of: #"(?s)```[^\n]*\n?.*\z"#, with: "", options: .regularExpression)
 
         // Images → alt text; links → link text (must run BEFORE generic bracket rules).

@@ -750,7 +750,6 @@ final class ConversationController: ObservableObject {
 
     /// Process a notification's token stream through the TTS+playback pipeline.
     private func runNotificationPipeline(tokenStream: AsyncThrowingStream<String, Error>) async throws {
-        let parser = SentenceParser()
         let audioQueue = AudioQueue()
         let pipelineState = PipelineState()
         let charController = characterController
@@ -759,25 +758,16 @@ final class ConversationController: ObservableObject {
         startLipSyncObservation()
         charController?.playAnimation(named: "think")
 
-        // Consume the token stream (tokens arrive via handleEvent).
-        do {
-            var rawResponse = ""
-            for try await chunk in tokenStream {
-                try Task.checkCancellation()
-                rawResponse.append(chunk)
-                streamingText.append(chunk)
-                await parser.feed(chunk)
-                await Task.yield()
-            }
-            await parser.finish()
-            await pipelineState.setRawResponse(rawResponse)
-        } catch is CancellationError {
-            await parser.finish()
-            throw CancellationError()
-        } catch {
-            await parser.finish()
-            throw error
+        // Consume the token stream (tokens arrive via handleEvent). Sentence parsing is
+        // deferred to after the stream ends — see runPipeline for the rationale.
+        var response = ""
+        for try await chunk in tokenStream {
+            try Task.checkCancellation()
+            response.append(chunk)
+            streamingText.append(chunk)
+            await Task.yield()
         }
+        await pipelineState.setRawResponse(response)
 
         charController?.stopAnimation()
 
@@ -790,11 +780,15 @@ final class ConversationController: ObservableObject {
         isStreaming = false
 
         // TTS + playback (same as chat pipeline, skip when TTS is disabled).
+        let speakable = MarkdownStripper.strip(rawResponse)
         if ttsEnabled {
+            let parser = SentenceParser()
+            await parser.feed(speakable)
+            await parser.finish()
             try await runTTSPlayback(parser: parser, audioQueue: audioQueue, charController: charController)
-        } else if !rawResponse.isEmpty {
+        } else if !speakable.isEmpty {
             // No audio to sync to — page the reply sentence-by-sentence in the pet bubble.
-            pageSpeechBubble(rawResponse)
+            pageSpeechBubble(speakable)
         }
     }
 
@@ -817,7 +811,6 @@ final class ConversationController: ObservableObject {
 
         let apiMessages = contextMessages.map { $0.apiMessage }
 
-        let parser = SentenceParser()
         let audioQueue = AudioQueue()
         let pipelineState = PipelineState()
         let charController = characterController
@@ -848,24 +841,17 @@ final class ConversationController: ObservableObject {
         charController?.playAnimation(named: "think")
 
         // Consume the token stream (tokens arrive via handleEvent → yield to continuation).
-        do {
-            var rawResponse = ""
-            for try await chunk in tokenStream {
-                try Task.checkCancellation()
-                rawResponse.append(chunk)
-                streamingText.append(chunk)
-                await parser.feed(chunk)
-                await Task.yield()
-            }
-            await parser.finish()
-            await pipelineState.setRawResponse(rawResponse)
-        } catch is CancellationError {
-            await parser.finish()
-            throw CancellationError()
-        } catch {
-            await parser.finish()
-            throw error
+        // Sentence parsing is deliberately deferred: SentenceParser's output is only consumed
+        // after the stream ends (in runTTSPlayback), so streaming buys nothing — and stripping
+        // Markdown once over the whole text is robust where per-chunk regexes would be fragile.
+        var response = ""
+        for try await chunk in tokenStream {
+            try Task.checkCancellation()
+            response.append(chunk)
+            streamingText.append(chunk)
+            await Task.yield()
         }
+        await pipelineState.setRawResponse(response)
 
         charController?.stopAnimation()
 
@@ -887,11 +873,17 @@ final class ConversationController: ObservableObject {
         isStreaming = false
 
         // TTS + playback (non-fatal, skip when TTS is disabled).
+        let speakable = MarkdownStripper.strip(rawResponse)
         if ttsEnabled {
+            let parser = SentenceParser()
+            await parser.feed(speakable)
+            await parser.finish()
             try await runTTSPlayback(parser: parser, audioQueue: audioQueue, charController: charController)
-        } else if !rawResponse.isEmpty {
+        } else if !speakable.isEmpty {
             // No audio to sync to — page the reply sentence-by-sentence in the pet bubble.
-            pageSpeechBubble(rawResponse)
+            // (Guard on speakable, not rawResponse: a non-empty reply that strips to nothing —
+            // e.g. one big unclosed code fence — has nothing worth paging.)
+            pageSpeechBubble(speakable)
         }
     }
 
