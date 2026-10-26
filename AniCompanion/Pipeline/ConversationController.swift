@@ -48,6 +48,11 @@ final class ConversationController: ObservableObject {
     /// Live streaming text from the LLM, shown token-by-token in the chat UI.
     @Published private(set) var streamingText: String = ""
 
+    /// UI-only: coalesces token deltas so Markdown re-parses stay smooth mid-stream.
+    private lazy var streamThrottle = StreamThrottle { [weak self] delta in
+        self?.streamingText += delta
+    }
+
     /// Whether the LLM token stream is active (waiting for or receiving tokens).
     ///
     /// Distinct from `isProcessing`, which stays true through TTS synthesis and
@@ -249,6 +254,8 @@ final class ConversationController: ObservableObject {
                 try await self.runPipeline()
             } catch is CancellationError {
                 // Cancellation is expected; no error to report.
+                // Flush the coalesced tail so the half-reply stays on screen (as before throttling).
+                self.streamThrottle.flush()
             } catch {
                 self.lastError = error
             }
@@ -541,7 +548,8 @@ final class ConversationController: ObservableObject {
             do {
                 try await self.runPipeline(suppressSilentResponse: visionGlance)
             } catch is CancellationError {
-                // Cancellation is expected.
+                // Cancellation is expected; flush the coalesced tail so the half-reply stays on screen.
+                self.streamThrottle.flush()
             } catch {
                 self.lastError = error
             }
@@ -735,7 +743,8 @@ final class ConversationController: ObservableObject {
             do {
                 try await self.runNotificationPipeline(tokenStream: tokenStream)
             } catch is CancellationError {
-                // Cancelled (e.g. user sent a message).
+                // Cancelled (e.g. user sent a message); flush the coalesced tail so the half-reply stays on screen.
+                self.streamThrottle.flush()
             } catch {
                 Log.pipeline("[Pipeline] Notification error (non-fatal): \(error.localizedDescription)")
             }
@@ -750,6 +759,7 @@ final class ConversationController: ObservableObject {
 
     /// Process a notification's token stream through the TTS+playback pipeline.
     private func runNotificationPipeline(tokenStream: AsyncThrowingStream<String, Error>) async throws {
+        streamThrottle.reset()
         let audioQueue = AudioQueue()
         let pipelineState = PipelineState()
         let charController = characterController
@@ -764,7 +774,7 @@ final class ConversationController: ObservableObject {
         for try await chunk in tokenStream {
             try Task.checkCancellation()
             response.append(chunk)
-            streamingText.append(chunk)
+            streamThrottle.push(chunk)
             await Task.yield()
         }
         await pipelineState.setRawResponse(response)
@@ -776,6 +786,7 @@ final class ConversationController: ObservableObject {
         if !rawResponse.isEmpty {
             history.addAssistantMessage(rawResponse)
         }
+        streamThrottle.flush()
         streamingText = ""
         isStreaming = false
 
@@ -794,6 +805,7 @@ final class ConversationController: ObservableObject {
 
     /// The core pipeline: send chat via the transport -> parse sentences -> TTS in parallel -> play in order.
     private func runPipeline(suppressSilentResponse: Bool = false) async throws {
+        streamThrottle.reset()
         var contextMessages = buildMessagesWithSystemPrompt()
 
         // "Watching together": while live transcription runs, slip the recent transcript in as a
@@ -846,7 +858,7 @@ final class ConversationController: ObservableObject {
         for try await chunk in tokenStream {
             try Task.checkCancellation()
             response.append(chunk)
-            streamingText.append(chunk)
+            streamThrottle.push(chunk)
             await Task.yield()
         }
         await pipelineState.setRawResponse(response)
@@ -859,6 +871,7 @@ final class ConversationController: ObservableObject {
         // is worth saying. Suppress the whole turn — no history, speech, or bubble — so she stays
         // quiet. Scoped to vision glances (never user turns) so it can't swallow a real reply.
         if suppressSilentResponse, Self.isSilentResponse(rawResponse) {
+            streamThrottle.flush()
             streamingText = ""
             isStreaming = false
             return
@@ -867,6 +880,7 @@ final class ConversationController: ObservableObject {
         if !rawResponse.isEmpty {
             history.addAssistantMessage(rawResponse)
         }
+        streamThrottle.flush()
         streamingText = ""
         isStreaming = false
 
@@ -1075,6 +1089,9 @@ final class ConversationController: ObservableObject {
         isProcessing = false
         isStreaming = false
         isSpeaking = false
+        // Discard (not flush) the coalesced tail — the whole turn is being torn down, and a
+        // reset here also makes any late-arriving catch-branch flush a no-op.
+        streamThrottle.reset()
         streamingText = ""
 
         characterController?.setMouthOpen(0)

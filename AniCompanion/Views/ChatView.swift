@@ -215,19 +215,26 @@ private struct MessageBubbleView: View {
             }
 
             VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
-                Text(message.displayContent)
-                    .font(.system(size: 14))
-                    .foregroundStyle(.white)
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(isUser
-                                ? Color.blue.opacity(0.6)
-                                : Color.white.opacity(0.1)
-                            )
-                    )
+                if isUser {
+                    Text(message.displayContent)
+                        .font(.system(size: 14))
+                        .foregroundStyle(.white)
+                        .textSelection(.enabled)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.blue.opacity(0.6))
+                        )
+                } else {
+                    MarkdownView(text: message.displayContent)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.white.opacity(0.1))
+                        )
+                }
 
                 Text(formattedTimestamp)
                     .font(.system(size: 10))
@@ -301,10 +308,7 @@ private struct AssistantProcessingView: View {
                 )
             } else {
                 // Live streaming text
-                Text(cleanedText)
-                    .font(.system(size: 14))
-                    .foregroundStyle(.white)
-                    .textSelection(.disabled)
+                MarkdownView(text: cleanedText, textSelectionEnabled: false)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .background(
