@@ -771,11 +771,17 @@ final class ConversationController: ObservableObject {
         // Consume the token stream (tokens arrive via handleEvent). Sentence parsing is
         // deferred to after the stream ends — see runPipeline for the rationale.
         var response = ""
-        for try await chunk in tokenStream {
-            try Task.checkCancellation()
-            response.append(chunk)
-            streamThrottle.push(chunk)
-            await Task.yield()
+        do {
+            for try await chunk in tokenStream {
+                try Task.checkCancellation()
+                response.append(chunk)
+                streamThrottle.push(chunk)
+                await Task.yield()
+            }
+        } catch is CancellationError {
+            // 停止生成：半截话保留入历史（豆包同款），再向上抛给外层 catch flush 上屏。
+            if !response.isEmpty { history.addAssistantMessage(response) }
+            throw CancellationError()
         }
         await pipelineState.setRawResponse(response)
 
@@ -855,11 +861,17 @@ final class ConversationController: ObservableObject {
         // after the stream ends (in runTTSPlayback), so streaming buys nothing — and stripping
         // Markdown once over the whole text is robust where per-chunk regexes would be fragile.
         var response = ""
-        for try await chunk in tokenStream {
-            try Task.checkCancellation()
-            response.append(chunk)
-            streamThrottle.push(chunk)
-            await Task.yield()
+        do {
+            for try await chunk in tokenStream {
+                try Task.checkCancellation()
+                response.append(chunk)
+                streamThrottle.push(chunk)
+                await Task.yield()
+            }
+        } catch is CancellationError {
+            // 停止生成：半截话保留入历史（豆包同款），再向上抛给外层 catch flush 上屏。
+            if !response.isEmpty { history.addAssistantMessage(response) }
+            throw CancellationError()
         }
         await pipelineState.setRawResponse(response)
 
