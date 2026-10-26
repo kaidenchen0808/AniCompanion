@@ -33,12 +33,18 @@ struct ChatMessage: Identifiable, Codable, Sendable, Equatable {
         ["role": role.rawValue, "content": content]
     }
 
-    /// Strip emotion tags from content for display.
+    /// Strip emotion tags from content for display, and normalize the HTML line breaks
+    /// Chinese models love (`<br>`) into real newlines — the markdown renderer shows raw
+    /// inline HTML as literal text otherwise.
     var displayContent: String {
-        content.replacingOccurrences(
+        let withoutTags = content.replacingOccurrences(
             of: #"\[(neutral|happy|sad|angry|surprised|curious|excited|shy|love|smirk|sleepy|proud|disgusted|pain|laugh|bored)\]\s*"#,
             with: "",
             options: .regularExpression
         )
+        return withoutTags
+            .replacingOccurrences(of: "<br>", with: "\n")
+            .replacingOccurrences(of: "<br/>", with: "\n")
+            .replacingOccurrences(of: "<br />", with: "\n")
     }
 }

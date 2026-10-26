@@ -19,6 +19,8 @@ struct MarkdownView: View {
         Markdown(text)
             .markdownTheme(.aniCompanion)
             .markdownImageProvider(.ani)
+            // 中文回复"一行一句"是高频排版——软换行渲染成空格会把整段挤成一坨
+            .markdownSoftBreakMode(.lineBreak)
     }
 }
 
@@ -74,6 +76,21 @@ extension Theme {
                 .foregroundStyle(Color(red: 0.45, green: 0.7, blue: 1.0))
                 .frame(width: 16)
                 .markdownMargin(top: .em(0.2))
+        }
+        .heading1 { configuration in
+            configuration.label
+                .markdownMargin(top: .em(0.6), bottom: .em(0.3))
+                .markdownTextStyle { FontWeight(.semibold); FontSize(.em(1.3)) }
+        }
+        .heading2 { configuration in
+            configuration.label
+                .markdownMargin(top: .em(0.5), bottom: .em(0.25))
+                .markdownTextStyle { FontWeight(.semibold); FontSize(.em(1.15)) }
+        }
+        .heading3 { configuration in
+            configuration.label
+                .markdownMargin(top: .em(0.4), bottom: .em(0.2))
+                .markdownTextStyle { FontWeight(.semibold); FontSize(.em(1.05)) }
         }
         .codeBlock { configuration in
             CodeBlockView(code: configuration.content)
