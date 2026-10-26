@@ -1,7 +1,7 @@
 import Foundation
 
 /// A single message in the conversation.
-struct ChatMessage: Identifiable, Codable, Sendable {
+struct ChatMessage: Identifiable, Codable, Sendable, Equatable {
     let id: UUID
     let role: Role
     let content: String
