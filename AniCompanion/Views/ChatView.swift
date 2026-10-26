@@ -25,9 +25,14 @@ struct ChatView: View {
             ScrollViewReader { scrollProxy in
                 ScrollView {
                     LazyVStack(spacing: 12) {
-                        ForEach(conversationHistory.messages.filter { $0.role != .system && !$0.isHidden }) { message in
-                            MessageBubbleView(message: message)
-                                .id(message.id)
+                        let visibleMessages = conversationHistory.messages.filter { $0.role != .system && !$0.isHidden }
+                        ForEach(visibleMessages) { message in
+                            MessageBubbleView(
+                                message: message,
+                                isLastAssistant: message.role == .assistant && message.id == visibleMessages.last?.id,
+                                onRegenerate: { Task { await conversationController.regenerate() } }
+                            )
+                            .id(message.id)
                         }
 
                         // Streaming text or typing indicator (single view type for LazyVStack stability).
@@ -133,7 +138,7 @@ struct ChatView: View {
                             .foregroundStyle(.white.opacity(0.85))
                     }
                     .buttonStyle(.plain)
-                    .help("停止生成")
+                    .help("Stop generating")
                     .transition(.scale.combined(with: .opacity))
                 } else {
                     Button {
@@ -212,6 +217,12 @@ struct ChatView: View {
 private struct MessageBubbleView: View {
 
     let message: ChatMessage
+    /// Regeneration is offered only on the very last assistant message.
+    var isLastAssistant: Bool = false
+    var onRegenerate: (() -> Void)? = nil
+
+    @State private var hovering = false
+    @State private var copied = false
 
     private var isUser: Bool { message.role == .user }
 
@@ -250,9 +261,44 @@ private struct MessageBubbleView: View {
                         )
                 }
 
-                Text(formattedTimestamp)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary.opacity(0.6))
+                HStack(spacing: 8) {
+                    if !isUser && hovering {
+                        // Hover action bar (Doubao-style): copy + regenerate
+                        HStack(spacing: 4) {
+                            hoverButton(
+                                icon: copied ? "checkmark" : "doc.on.doc",
+                                help: copied ? "Copied" : "Copy",
+                                action: copyMessage
+                            )
+                            if isLastAssistant {
+                                hoverButton(
+                                    icon: "arrow.clockwise",
+                                    help: "Regenerate",
+                                    action: { onRegenerate?() }
+                                )
+                            }
+                        }
+                        .transition(.opacity)
+                    }
+
+                    Text(formattedTimestamp)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary.opacity(0.6))
+                }
+            }
+            .contextMenu {
+                Button {
+                    copyMessage()
+                } label: {
+                    Label("Copy", systemImage: "doc.on.doc")
+                }
+                if isLastAssistant {
+                    Button {
+                        onRegenerate?()
+                    } label: {
+                        Label("Regenerate", systemImage: "arrow.clockwise")
+                    }
+                }
             }
 
             // User icon
@@ -265,6 +311,31 @@ private struct MessageBubbleView: View {
             }
 
             if !isUser { Spacer(minLength: 40) }
+        }
+        .onHover { hovering = $0 }
+    }
+
+    /// Small ghost icon button for the hover action bar.
+    private func hoverButton(icon: String, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.55))
+                .padding(4)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(help)
+    }
+
+    /// Copy the tag-stripped Markdown source to the pasteboard.
+    private func copyMessage() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(message.displayContent, forType: .string)
+        copied = true
+        Task {
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            copied = false
         }
     }
 
