@@ -25,8 +25,19 @@ struct ChatView: View {
             ScrollViewReader { scrollProxy in
                 ScrollView {
                     LazyVStack(spacing: 12) {
+                        // Top-of-list sentinel: appearing (i.e. scrolled to the very top) pages
+                        // older history in. No-op when there is nothing older.
+                        Color.clear
+                            .frame(height: 1)
+                            .onAppear { loadOlderIfNeeded(proxy: scrollProxy) }
+
                         let visibleMessages = conversationHistory.messages.filter { $0.role != .system && !$0.isHidden }
-                        ForEach(visibleMessages) { message in
+                        ForEach(Array(visibleMessages.enumerated()), id: \.element.id) { index, message in
+                            if index == 0 || !Calendar.current.isDate(
+                                visibleMessages[index - 1].timestamp, inSameDayAs: message.timestamp
+                            ) {
+                                DaySeparator(date: message.timestamp)
+                            }
                             MessageBubbleView(
                                 message: message,
                                 isLastAssistant: message.role == .assistant && message.id == visibleMessages.last?.id,
@@ -47,7 +58,9 @@ struct ChatView: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 16)
                 }
-                .onChange(of: conversationHistory.messages.count) { _, _ in
+                // Bottom-scroll on NEW messages only (append changes the last id); prepending
+                // older history or mid-list deletion must not yank the viewport.
+                .onChange(of: conversationHistory.messages.last?.id) { _, _ in
                     scrollToBottom(proxy: scrollProxy)
                 }
                 .onChange(of: conversationController.isProcessing) { _, _ in
@@ -205,6 +218,44 @@ struct ChatView: View {
                 proxy.scrollTo(lastMessage.id, anchor: .bottom)
             }
         }
+    }
+
+    /// Page older history in at the top, anchored to the previous oldest message so the
+    /// viewport stays put (no jump to bottom — the last-id onChange deliberately skips prepends).
+    private func loadOlderIfNeeded(proxy: ScrollViewProxy) {
+        guard let anchorId = conversationHistory.messages.first?.id else { return }
+        guard conversationHistory.loadOlder(limit: 100) else { return }
+        proxy.scrollTo(anchorId, anchor: .top)
+    }
+}
+
+// MARK: - Day Separator
+
+/// "Today" / "Yesterday" / date divider between chat days (Doubao-style).
+private struct DaySeparator: View {
+
+    let date: Date
+
+    var body: some View {
+        Text(label)
+            .font(.system(size: 11))
+            .foregroundStyle(.secondary.opacity(0.7))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 3)
+            .background(
+                Capsule().fill(Color.white.opacity(0.06))
+            )
+            .frame(maxWidth: .infinity)
+    }
+
+    private var label: String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return "Today" }
+        if calendar.isDateInYesterday(date) { return "Yesterday" }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter.string(from: date)
     }
 }
 
