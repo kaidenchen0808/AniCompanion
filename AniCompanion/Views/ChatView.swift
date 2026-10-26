@@ -350,13 +350,26 @@ private struct MessageBubbleView: View {
                                 .fill(Color.blue.opacity(0.6))
                         )
                 } else {
-                    MarkdownView(text: message.displayContent)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(Color.white.opacity(0.1))
-                        )
+                    VStack(alignment: .leading, spacing: 8) {
+                        MarkdownView(text: message.displayContent)
+
+                        // Local file paths found in the reply → file cards (Quick Look on tap).
+                        // Image paths are skipped here — they render inline via the markdown
+                        // image pipeline when she formats them as ![](path).
+                        let cards = FilePathDetector.matches(in: message.displayContent)
+                            .filter { !isImagePath($0.absolute) }
+                        if !cards.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                ForEach(cards, id: \.raw) { FileCardView(match: $0) }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color.white.opacity(0.1))
+                    )
                 }
 
                 HStack(spacing: 8) {
@@ -417,6 +430,12 @@ private struct MessageBubbleView: View {
             if !isUser { Spacer(minLength: 40) }
         }
         .onHover { hovering = $0 }
+    }
+
+    /// Image extensions render via the markdown image pipeline, not as file cards.
+    private func isImagePath(_ path: String) -> Bool {
+        ["png", "jpg", "jpeg", "gif", "webp", "heic", "tiff", "bmp", "svg"]
+            .contains((path as NSString).pathExtension.lowercased())
     }
 
     /// Small ghost icon button for the hover action bar.
