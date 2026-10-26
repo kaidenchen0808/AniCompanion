@@ -26,7 +26,8 @@ actor SentenceParser {
     private let maxBufferLengthBeforeClauseSplit = 50
 
     /// Regex pattern for emotion tags in LLM output.
-    private static let emotionTagPattern = #"\[(neutral|happy|sad|angry|surprised|curious|excited|shy|love|smirk|sleepy|proud|disgusted|pain|laugh|bored)\]"#
+    /// Internal so EmotionSegmenter can split on the exact same tag list — single source of truth.
+    static let emotionTagPattern = #"\[(neutral|happy|sad|angry|surprised|curious|excited|shy|love|smirk|sleepy|proud|disgusted|pain|laugh|bored)\]"#
 
     /// Characters that constitute sentence-ending boundaries.
     private static let sentenceBoundaries: Set<Character> = ["。", "！", "？", "\n", "～", "⋯"]

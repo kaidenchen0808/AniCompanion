@@ -782,9 +782,7 @@ final class ConversationController: ObservableObject {
         // TTS + playback (same as chat pipeline, skip when TTS is disabled).
         let speakable = MarkdownStripper.strip(rawResponse)
         if ttsEnabled {
-            let parser = SentenceParser()
-            await parser.feed(speakable)
-            await parser.finish()
+            let parser = await makeFedParser(for: speakable)
             try await runTTSPlayback(parser: parser, audioQueue: audioQueue, charController: charController)
         } else if !speakable.isEmpty {
             // No audio to sync to — page the reply sentence-by-sentence in the pet bubble.
@@ -875,9 +873,7 @@ final class ConversationController: ObservableObject {
         // TTS + playback (non-fatal, skip when TTS is disabled).
         let speakable = MarkdownStripper.strip(rawResponse)
         if ttsEnabled {
-            let parser = SentenceParser()
-            await parser.feed(speakable)
-            await parser.finish()
+            let parser = await makeFedParser(for: speakable)
             try await runTTSPlayback(parser: parser, audioQueue: audioQueue, charController: charController)
         } else if !speakable.isEmpty {
             // No audio to sync to — page the reply sentence-by-sentence in the pet bubble.
@@ -888,6 +884,20 @@ final class ConversationController: ObservableObject {
     }
 
     // MARK: - TTS + Playback (shared)
+
+    /// Build a finished parser fed with a Markdown-stripped reply, segment-by-segment.
+    ///
+    /// Feeding in EmotionSegmenter segments (rather than one bulk string) keeps each
+    /// emotion tag in effect for the text after it — a bulk feed would flatten the
+    /// whole reply to the last tag's emotion and lose the per-sentence expression arc.
+    private func makeFedParser(for speakable: String) async -> SentenceParser {
+        let parser = SentenceParser()
+        for segment in EmotionSegmenter.segments(speakable) {
+            await parser.feed(segment)
+        }
+        await parser.finish()
+        return parser
+    }
 
     /// Run TTS synthesis and ordered audio playback for parsed sentences.
     /// Shared between chat pipeline and notification pipeline.
