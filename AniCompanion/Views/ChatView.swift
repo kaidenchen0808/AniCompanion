@@ -123,24 +123,43 @@ struct ChatView: View {
                         ? "Stop listening"
                         : (conversationController.isSpeaking ? "Interrupt & speak" : "Start voice input")))
 
-                // Text input field
-                TextField("Type a message...", text: $inputText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 14))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 18)
-                            .fill(Color.white.opacity(0.08))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18)
-                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                    )
-                    .focused($isInputFocused)
-                    .onSubmit {
-                        sendMessage()
+                // Multi-line input field: auto-grows 1–6 lines (scrolls beyond),
+                // Enter sends / Shift+Enter inserts a newline.
+                ZStack(alignment: .topLeading) {
+                    TextEditor(text: $inputText)
+                        .font(.system(size: 14))
+                        .scrollContentBackground(.hidden)
+                        .frame(minHeight: inputEditorHeight)
+                        .frame(maxHeight: 132, alignment: .topLeading)
+
+                    if inputText.isEmpty {
+                        Text("Type a message...")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.secondary.opacity(0.6))
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 8)
+                            .allowsHitTesting(false)
                     }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 0)
+                .background(
+                    RoundedRectangle(cornerRadius: 18)
+                        .fill(Color.white.opacity(0.08))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+                .focused($isInputFocused)
+                .onKeyPress(.return, phases: .down) { press in
+                    // Shift+Return (and any other modifier combo) falls through to a newline;
+                    // bare Return sends. Note: IME candidate confirmation also lands here —
+                    // if that proves annoying in practice, drop this and keep button-send.
+                    guard !press.modifiers.contains(.shift) else { return .ignored }
+                    sendMessage()
+                    return .handled
+                }
 
                 // Send / Stop button
                 if conversationController.isStreaming {
@@ -183,6 +202,21 @@ struct ChatView: View {
     /// Whether the send button should be enabled.
     private var canSend: Bool {
         !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Auto-grow height for the input editor: text height measured at a conservative
+    /// width (real lines never get clipped — an underestimate just leaves slack),
+    /// clamped to the single-line … 6-line band; beyond that the editor scrolls inside.
+    private var inputEditorHeight: CGFloat {
+        let attributed = NSAttributedString(
+            string: inputText.isEmpty ? " " : inputText + "\n",
+            attributes: [.font: NSFont.systemFont(ofSize: 14)]
+        )
+        let bounds = attributed.boundingRect(
+            with: NSSize(width: 320, height: CGFloat.greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin]
+        )
+        return min(max(bounds.height + 16, 36), 132)
     }
 
     /// Send the current input text as a message.
