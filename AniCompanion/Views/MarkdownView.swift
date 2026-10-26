@@ -1,5 +1,6 @@
 import SwiftUI
 import MarkdownUI
+import Highlightr
 
 /// Renders assistant chat content as Markdown, themed for the dark chat bubbles.
 struct MarkdownView: View {
@@ -27,10 +28,10 @@ struct MarkdownView: View {
 // MARK: - Theme
 
 @MainActor
-extension Theme {
+extension MarkdownUI.Theme {
 
     /// Dark-bubble theme: white body text, bright-blue links, dark rounded code blocks.
-    static let aniCompanion: Theme = Theme()
+    static let aniCompanion: MarkdownUI.Theme = MarkdownUI.Theme()
         .text {
             FontSize(14)
             ForegroundColor(.white)
@@ -97,7 +98,7 @@ extension Theme {
                 // $$...$$ 块级公式（MarkdownNormalizer 归一成 ```math 围栏）→ KaTeX 渲染
                 MathBlockView(latex: configuration.content)
             } else {
-                CodeBlockView(code: configuration.content)
+                CodeBlockView(code: configuration.content, language: configuration.language)
             }
         }
         .image { configuration in
@@ -117,43 +118,77 @@ extension Theme {
 
 // MARK: - Code block with copy button
 
-/// Dark code block with a monospaced scroll view and a copy button (Doubao-style).
+/// Dark code block with a monospaced scroll view, syntax highlighting (Highlightr,
+/// when the fence names a language) and a copy button (Doubao-style).
 struct CodeBlockView: View {
 
     let code: String
+    var language: String? = nil
     @State private var copied = false
+    @State private var highlighted: NSAttributedString?
+
+    /// Shared Highlightr instance (loads highlight.js bundle once per process).
+    @MainActor private static let highlightr: Highlightr? = {
+        let hl = Highlightr()
+        hl?.setTheme(to: "atom-one-dark")
+        return hl
+    }()
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
             ScrollView(.horizontal, showsIndicators: false) {
-                Text(code)
-                    .font(.system(size: 12.5, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.92))
-                    .textSelection(.enabled)
-                    .padding(12)
+                Group {
+                    if let highlighted {
+                        Text(AttributedString(highlighted))
+                    } else {
+                        Text(code)
+                            .font(.system(size: 12.5, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.92))
+                    }
+                }
+                .textSelection(.enabled)
+                .padding(12)
             }
             .padding(.trailing, 36)
+            .task { highlight() }
 
-            Button {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(code, forType: .string)
-                copied = true
-                Task {
-                    try? await Task.sleep(nanoseconds: 1_200_000_000)
-                    copied = false
+            HStack(spacing: 2) {
+                if let language, !language.isEmpty, language != "text" {
+                    Text(language)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.4))
+                        .padding(.trailing, 4)
                 }
-            } label: {
-                Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(copied ? 0.95 : 0.55))
-                    .padding(6)
-                    .contentShape(Rectangle())
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(code, forType: .string)
+                    copied = true
+                    Task {
+                        try? await Task.sleep(nanoseconds: 1_200_000_000)
+                        copied = false
+                    }
+                } label: {
+                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(copied ? 0.95 : 0.55))
+                        .padding(6)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(copied ? "已复制" : "复制代码")
             }
-            .buttonStyle(.plain)
-            .help(copied ? "已复制" : "复制代码")
             .padding(6)
         }
         .background(RoundedRectangle(cornerRadius: 10).fill(Color.black.opacity(0.45)))
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.1), lineWidth: 1))
+    }
+
+    private func highlight() {
+        guard highlighted == nil, let hl = Self.highlightr else { return }
+        // 无语言标注 / 高亮失败 → 保持纯文本（不阻塞渲染）
+        guard let language, !language.isEmpty, language != "text" else { return }
+        if let attr = hl.highlight(code, as: language, fastRender: true) {
+            highlighted = attr
+        }
     }
 }

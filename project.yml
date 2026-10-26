@@ -14,6 +14,9 @@ packages:
   SwiftMath:
     url: https://github.com/mgriebling/SwiftMath
     exactVersion: "1.7.3"
+  Highlightr:
+    url: https://github.com/raspu/Highlightr
+    exactVersion: "2.2.0"
 
 settings:
   base:
@@ -105,6 +108,7 @@ targets:
         embed: true
       - package: MarkdownUI
       - package: SwiftMath
+      - package: Highlightr
 
   AniCompanionTests:
     type: bundle.unit-test
