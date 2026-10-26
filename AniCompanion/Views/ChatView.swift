@@ -123,17 +123,31 @@ struct ChatView: View {
                         sendMessage()
                     }
 
-                // Send button
-                Button {
-                    sendMessage()
-                } label: {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundStyle(canSend ? .blue : .secondary.opacity(0.5))
+                // Send / Stop button
+                if conversationController.isStreaming {
+                    Button {
+                        conversationController.cancel()
+                    } label: {
+                        Image(systemName: "stop.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundStyle(.white.opacity(0.85))
+                    }
+                    .buttonStyle(.plain)
+                    .help("停止生成")
+                    .transition(.scale.combined(with: .opacity))
+                } else {
+                    Button {
+                        sendMessage()
+                    } label: {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundStyle(canSend ? .blue : .secondary.opacity(0.5))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!canSend)
+                    .help("Send message")
+                    .transition(.scale.combined(with: .opacity))
                 }
-                .buttonStyle(.plain)
-                .disabled(!canSend)
-                .help("Send message")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
