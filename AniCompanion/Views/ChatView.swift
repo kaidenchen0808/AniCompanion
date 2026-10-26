@@ -18,6 +18,17 @@ struct ChatView: View {
     /// Focus state for the text input field.
     @FocusState private var isInputFocused: Bool
 
+    // MARK: / 技能选择器状态
+
+    /// All discovered skills (~/.claude/skills), scanned on appear.
+    @State private var allSkills: [Skill] = []
+    /// Skills attached to the next message (chips above the input).
+    @State private var selectedSkills: [Skill] = []
+    /// Panel visibility — typing `/` at the start of the input opens it.
+    @State private var skillPanelVisible = false
+    /// Keyboard-highlighted row while the panel is open.
+    @State private var skillHighlightIndex = 0
+
     var body: some View {
         VStack(spacing: 0) {
             // MARK: - Message List
@@ -108,6 +119,34 @@ struct ChatView: View {
             Divider()
                 .background(Color.white.opacity(0.1))
 
+            // MARK: - Skill chips（选中技能挂在输入框上）
+
+            if !selectedSkills.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(selectedSkills) { skill in
+                            SkillChip(skill: skill) {
+                                selectedSkills.removeAll { $0 == skill }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
+                }
+            }
+
+            // MARK: - Skill Picker Panel（行首 / 触发）
+
+            if skillPanelVisible {
+                SkillPickerPanel(
+                    skills: filteredSkills,
+                    highlightIndex: $skillHighlightIndex,
+                    onSelect: { attachSkill($0) }
+                )
+                .padding(.horizontal, 12)
+                .padding(.top, 8)
+            }
+
             // MARK: - Input Bar
 
             HStack(spacing: 8) {
@@ -159,12 +198,44 @@ struct ChatView: View {
                         .stroke(Color.white.opacity(0.12), lineWidth: 1)
                 )
                 .focused($isInputFocused)
+                .onChange(of: inputText) { _, newValue in
+                    // 行首 `/` 打开技能面板，其余输入关闭；query = / 后的文本
+                    if newValue.hasPrefix("/") {
+                        skillPanelVisible = true
+                        skillHighlightIndex = 0
+                    } else if skillPanelVisible {
+                        skillPanelVisible = false
+                    }
+                }
                 .onKeyPress(.return, phases: .down) { press in
+                    // 技能面板开着：Enter 选中高亮技能，不发送
+                    if skillPanelVisible, !press.modifiers.contains(.shift) {
+                        if filteredSkills.indices.contains(skillHighlightIndex) {
+                            attachSkill(filteredSkills[skillHighlightIndex])
+                        }
+                        return .handled
+                    }
                     // Shift+Return (and any other modifier combo) falls through to a newline;
                     // bare Return sends. Note: IME candidate confirmation also lands here —
                     // if that proves annoying in practice, drop this and keep button-send.
                     guard !press.modifiers.contains(.shift) else { return .ignored }
                     sendMessage()
+                    return .handled
+                }
+                .onKeyPress(.downArrow, phases: .down) { _ in
+                    guard skillPanelVisible, skillHighlightIndex < filteredSkills.count - 1 else { return .ignored }
+                    skillHighlightIndex += 1
+                    return .handled
+                }
+                .onKeyPress(.upArrow, phases: .down) { _ in
+                    guard skillPanelVisible, skillHighlightIndex > 0 else { return .ignored }
+                    skillHighlightIndex -= 1
+                    return .handled
+                }
+                .onKeyPress(.escape, phases: .down) { _ in
+                    guard skillPanelVisible else { return .ignored }
+                    skillPanelVisible = false
+                    inputText = ""
                     return .handled
                 }
 
@@ -201,6 +272,7 @@ struct ChatView: View {
         .background(Color.clear)
         .onAppear {
             isInputFocused = true
+            allSkills = SkillStore.scan(root: SkillStore.defaultRoot)
         }
     }
 
@@ -209,6 +281,21 @@ struct ChatView: View {
     /// Whether the send button should be enabled.
     private var canSend: Bool {
         !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Panel list: skills filtered by the text after the leading `/`.
+    private var filteredSkills: [Skill] {
+        let query = inputText.hasPrefix("/") ? String(inputText.dropFirst()) : ""
+        return Array(SkillStore.filter(allSkills, query: query).prefix(30))
+    }
+
+    /// Attach a skill chip, clear the `/` query, close the panel.
+    private func attachSkill(_ skill: Skill) {
+        if !selectedSkills.contains(skill) {
+            selectedSkills.append(skill)
+        }
+        inputText = ""
+        skillPanelVisible = false
     }
 
     /// Auto-grow height for the input editor: text height measured at a conservative
