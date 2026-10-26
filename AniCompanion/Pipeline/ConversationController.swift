@@ -235,6 +235,24 @@ final class ConversationController: ObservableObject {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
+        history.addUserMessage(trimmed)
+        await startChatPipeline()
+    }
+
+    /// Regenerate the last assistant reply: drop it and re-run the pipeline against the
+    /// same context (the trailing user message stays — no duplicate append).
+    /// 好感度去重由 companion-layer 网关处理（相同 lastUser 短窗跳过结算）。
+    func regenerate() async {
+        guard !isProcessing, !isStreaming else { return }
+        guard history.messages.last?.role == .assistant else { return }
+        history.removeLastMessage()
+        await startChatPipeline()
+    }
+
+    /// Launch the chat pipeline task (shared by sendMessage and regenerate): cancels any
+    /// active pipeline, bumps the generation so stale cleanup can't clobber the new run,
+    /// and runs `runPipeline` in a cancellable task. The caller mutates history FIRST.
+    private func startChatPipeline() async {
         // Cancel any ongoing processing (including notifications).
         cancelInternal()
 
@@ -243,8 +261,6 @@ final class ConversationController: ObservableObject {
 
         lastError = nil
         isProcessing = true
-
-        history.addUserMessage(trimmed)
 
         // Run the pipeline in a cancellable task.
         let task = Task { @MainActor [weak self] in
@@ -265,7 +281,7 @@ final class ConversationController: ObservableObject {
 
         processingTask = task
 
-        // Await the task so `sendMessage` only returns when the pipeline is done.
+        // Await the task so the caller only returns when the pipeline is done.
         await task.value
     }
 
