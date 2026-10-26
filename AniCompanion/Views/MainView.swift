@@ -2,17 +2,32 @@ import SwiftUI
 
 // MARK: - MainView
 
-/// The windowed UI: the VRM 3D character on the left (~60% width) and the chat interface on
-/// the right (~40% width). Desktop Pet mode is handled entirely in AppKit (`AppDelegate`):
-/// it swaps the window to a borderless transparent panel showing the bare WebView, so this
-/// view is only ever shown in the normal window. The 🐾 toolbar button (and ⌘⇧D) flips
-/// `appState.petMode`, which `AppDelegate` observes.
+/// The windowed UI, QQ-chat style: the chat interface on the LEFT (elastic, default 58%
+/// of the window) and the VRM 3D character on the RIGHT (~42%) — the message flow is the
+/// main character and she stands beside it like a QQ-show profile card. The split is a
+/// draggable divider whose ratio persists in `main_chat_ratio` (30%–70% band).
+/// Desktop Pet mode is handled entirely in AppKit (`AppDelegate`): it swaps the window to
+/// a borderless transparent panel showing the bare WebView, so this view is only ever shown
+/// in the normal window. The 🐾 toolbar button (and ⌘⇧D) flips `appState.petMode`,
+/// which `AppDelegate` observes.
 struct MainView: View {
 
     @EnvironmentObject private var appState: AppState
 
     /// Whether the settings sheet is presented.
     @State private var showSettings: Bool = false
+
+    /// Chat panel's share of the window width (drag the divider to change; persisted).
+    /// Stored as Double (@AppStorage's supported type); converted to CGFloat at the geometry edge.
+    @AppStorage("main_chat_ratio") private var chatRatio = Double(PanelLayout.defaultRatio)
+
+    /// CGFloat bridge for the divider's drag binding.
+    private var chatRatioBinding: Binding<CGFloat> {
+        Binding(
+            get: { CGFloat(chatRatio) },
+            set: { chatRatio = Double($0) }
+        )
+    }
 
     /// Drives the "no AI model connected" banner. Set true only after the transport has been
     /// disconnected for a short grace period, so a working setup's brief launch health-check
@@ -21,34 +36,34 @@ struct MainView: View {
 
     var body: some View {
         NavigationStack {
-            HStack(spacing: 0) {
-                // MARK: - Left: VRM Character Display
-                ThreeVRMRenderView(characterManager: appState.characterManager)
-                    .frame(minWidth: 400)
-                    .layoutPriority(1)
-                    .overlay(alignment: .bottom) {
-                        LiveCaptionOverlay(controller: appState.liveTranscription)
+            GeometryReader { geo in
+                HStack(spacing: 0) {
+                    // MARK: - Left: Chat Interface (the main panel, QQ-style)
+                    if let controller = appState.conversationController {
+                        ChatView(
+                            conversationController: controller,
+                            conversationHistory: appState.conversationHistory
+                        )
+                        .frame(width: PanelLayout.chatWidth(ratio: CGFloat(chatRatio), windowWidth: geo.size.width))
+                    } else {
+                        VStack {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                            Text("Initializing...")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(width: PanelLayout.chatWidth(ratio: CGFloat(chatRatio), windowWidth: geo.size.width))
                     }
 
-                Divider()
-                    .background(Color.white.opacity(0.1))
+                    PanelDivider(ratio: chatRatioBinding, windowWidth: geo.size.width)
 
-                // MARK: - Right: Chat Interface
-                if let controller = appState.conversationController {
-                    ChatView(
-                        conversationController: controller,
-                        conversationHistory: appState.conversationHistory
-                    )
-                    .frame(minWidth: 300, idealWidth: 360)
-                } else {
-                    VStack {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                        Text("Initializing...")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(minWidth: 300, idealWidth: 360)
+                    // MARK: - Right: VRM Character Display
+                    ThreeVRMRenderView(characterManager: appState.characterManager)
+                        .frame(minWidth: 300)
+                        .overlay(alignment: .bottom) {
+                            LiveCaptionOverlay(controller: appState.liveTranscription)
+                        }
                 }
             }
             .frame(minWidth: 900, minHeight: 600)
@@ -221,6 +236,53 @@ private struct LiveCaptionOverlay: View {
             .padding(.bottom, 18)
             .animation(.easeInOut(duration: 0.18), value: controller.captionText.isEmpty)
         }
+    }
+}
+
+// MARK: - Panel Divider
+
+/// QQ 式可拖动分栏线：8pt 拖动热区 + 1pt 视觉线，hover 时线体微亮并切 ↔ 光标。
+/// 拖动把手势起点的 ratio 加上累计位移映射的比例增量（onChanged 高频触发，必须以
+/// 起点为基准，否则重复累加）；clamp 由 PanelLayout 统一处理。
+private struct PanelDivider: View {
+
+    @Binding var ratio: CGFloat
+    let windowWidth: CGFloat
+
+    @State private var hovering = false
+    /// Ratio at drag start — nil while not dragging.
+    @State private var dragBaseRatio: CGFloat?
+
+    var body: some View {
+        ZStack {
+            Color.clear
+            Rectangle()
+                .fill(Color.white.opacity(hovering ? 0.35 : 0.12))
+                .frame(width: 1)
+        }
+        .frame(width: 8)
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            self.hovering = hovering
+            if hovering {
+                NSCursor.resizeLeftRight.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+        .gesture(
+            DragGesture(minimumDistance: 1)
+                .onChanged { value in
+                    let base = dragBaseRatio ?? PanelLayout.computeRatio(ratio)
+                    if dragBaseRatio == nil { dragBaseRatio = base }
+                    ratio = PanelLayout.computeRatio(
+                        base + value.translation.width / max(windowWidth, 1)
+                    )
+                }
+                .onEnded { _ in
+                    dragBaseRatio = nil
+                }
+        )
     }
 }
 
