@@ -232,7 +232,9 @@ final class AppState: ObservableObject {
 
     init() {
         self.characterManager = ThreeVRMCharacterManager()
-        self.conversationHistory = ConversationHistory()
+        let historyStore = HistoryStore()
+        self.conversationHistory = ConversationHistory(store: historyStore)
+        conversationHistory.restoreFromStore(limit: 200)
         Self.migrateLegacyConnectionDefaults()
     }
 
