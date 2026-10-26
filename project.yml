@@ -11,6 +11,9 @@ packages:
   MarkdownUI:
     url: https://github.com/gonzalezreal/swift-markdown-ui
     exactVersion: "2.4.0"
+  SwiftMath:
+    url: https://github.com/mgriebling/SwiftMath
+    exactVersion: "1.7.3"
 
 settings:
   base:
@@ -101,6 +104,7 @@ targets:
       - framework: AniCompanion/Libraries/sherpa-onnx/libonnxruntime.dylib
         embed: true
       - package: MarkdownUI
+      - package: SwiftMath
 
   AniCompanionTests:
     type: bundle.unit-test

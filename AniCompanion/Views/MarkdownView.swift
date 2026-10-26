@@ -16,7 +16,7 @@ struct MarkdownView: View {
     }
 
     private var base: some View {
-        Markdown(text)
+        Markdown(MarkdownNormalizer.normalize(text))
             .markdownTheme(.aniCompanion)
             .markdownImageProvider(.ani)
             // 中文回复"一行一句"是高频排版——软换行渲染成空格会把整段挤成一坨
@@ -93,7 +93,12 @@ extension Theme {
                 .markdownTextStyle { FontWeight(.semibold); FontSize(.em(1.05)) }
         }
         .codeBlock { configuration in
-            CodeBlockView(code: configuration.content)
+            if configuration.language == "math" {
+                // $$...$$ 块级公式（MarkdownNormalizer 归一成 ```math 围栏）→ KaTeX 渲染
+                MathBlockView(latex: configuration.content)
+            } else {
+                CodeBlockView(code: configuration.content)
+            }
         }
         .image { configuration in
             // Rounded block-level images (http + file:// both arrive via AniImageProvider)

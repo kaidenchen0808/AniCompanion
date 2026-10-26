@@ -48,6 +48,14 @@ struct RemoteOrLocalImage: View {
 
     private func load() async {
         guard let url else { return }
+        // data: URI（base64 内嵌图）— base64 图片直接解码，不占网络
+        if url.scheme == "data", let comma = url.absoluteString.firstIndex(of: ",") {
+            let payload = String(url.absoluteString[url.absoluteString.index(after: comma)...])
+            if let data = Data(base64Encoded: payload), let ns = NSImage(data: data) {
+                image = ns
+            }
+            return
+        }
         // Local file: synchronous read is fine off-main via Task.detached semantics of await
         if url.isFileURL {
             if let data = try? Data(contentsOf: url), let ns = NSImage(data: data) {
