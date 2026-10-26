@@ -29,8 +29,10 @@ macOS desktop AI character app with VRM 3D character rendering, LLM chat, TTS sp
   chat turn, so a multimodal model can "see the screen." Needs a vision-capable model + macOS Screen
   Recording permission.
 - **Audio**: AVAudioEngine + AVAudioPlayerNode
-- **Dependencies**: no SPM packages — three-vrm + three.js load via CDN import maps; networking via
-  URLSession, audio via AVFoundation. See `ATTRIBUTION.md`.
+- **Dependencies**: one SPM package — MarkdownUI 2.4.0 (exact-pinned in project.yml) renders
+  assistant chat replies as Markdown (dark theme + code-block copy button, `Views/MarkdownView.swift`).
+  First resolve needs the proxy (`export https_proxy=http://127.0.0.1:7897`). three-vrm + three.js
+  still load via CDN import maps; networking via URLSession, audio via AVFoundation. See `ATTRIBUTION.md`.
 
 ## Project Structure
 
@@ -54,7 +56,8 @@ AniCompanion/
 ## Key Commands
 
 ```bash
-# Regenerate Xcode project after changing project.yml (run from repo root, where project.yml lives)
+# Regenerate Xcode project after changing project.yml (run from repo root, where project.yml lives).
+# Required after ANY new .swift file — xcodegen globs directories, new files are invisible until you do.
 xcodegen generate
 
 # Build
