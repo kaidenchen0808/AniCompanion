@@ -40,6 +40,40 @@ extension Theme {
         }
         .link {
             ForegroundColor(Color(red: 0.45, green: 0.7, blue: 1.0))
+            UnderlineStyle(.single)
+        }
+        .blockquote { configuration in
+            configuration.label
+                .padding(.leading, 12)
+                .overlay(
+                    GeometryReader { geo in
+                        Rectangle()
+                            .fill(Color.white.opacity(0.25))
+                            .frame(width: 2)
+                    }
+                    .frame(maxHeight: .infinity, alignment: .leading)
+                )
+                .markdownMargin(top: .em(0.3), bottom: .em(0.3))
+        }
+        .tableCell { configuration in
+            configuration.label
+                .markdownTextStyle {
+                    ForegroundColor(.white.opacity(0.88))
+                    FontSize(13)
+                }
+                .padding(.vertical, 6)
+                .padding(.horizontal, 10)
+                .overlay(
+                    Rectangle()
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+        }
+        .taskListMarker { configuration in
+            Image(systemName: configuration.isCompleted ? "checkmark.square.fill" : "square")
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(Color(red: 0.45, green: 0.7, blue: 1.0))
+                .frame(width: 16)
+                .markdownMargin(top: .em(0.2))
         }
         .codeBlock { configuration in
             CodeBlockView(code: configuration.content)
