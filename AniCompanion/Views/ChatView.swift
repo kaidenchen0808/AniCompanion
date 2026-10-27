@@ -587,14 +587,42 @@ struct ChatView: View {
             return
         }
         let name = url.lastPathComponent
-        // 文本类（含 PDF）内联抽取：她直接读到内容，快
+        // 文本类（含文字层 PDF）内联抽取：她直接读到内容，快
         if let text = Self.extractText(from: url), !text.isEmpty {
             let clipped = text.count > 20_000 ? String(text.prefix(20_000)) + "\n…（已截断）" : text
             pendingFiles.append(PendingFile(name: name, icon: "doc.text", payload: "[文件 \(name)]\n\(clipped)\n[文件结束 —— 关于这个文件：]"))
             return
         }
+        // 扫描版 PDF（无文字层）：页面渲染成图走视觉通道（GLM-4.5V OCR）——
+        // 此前落路径让 claude Read，但 Read 扫描页是图像、后端模型看不了，必死（2026-10-27 简历实测）
+        if url.pathExtension.lowercased() == "pdf", Self.pdfPageCount(url) > 0 {
+            let pages = Self.renderPdfPages(url, limit: 4 - pendingImages.count)
+            if !pages.isEmpty {
+                pages.forEach(appendImage)
+                return
+            }
+        }
         // 其他（二进制/超大）：附路径，网关失信兜底会自动派 Read 代读
         pendingFiles.append(PendingFile(name: name, icon: "doc.badge.ellipsis", payload: url.path))
+    }
+
+    /// PDF 页数（0=打不开/损坏）。 */
+    private static func pdfPageCount(_ url: URL) -> Int {
+        PDFDocument(url: url)?.pageCount ?? 0
+    }
+
+    /// 把 PDF 前N页渲染成 NSImage（扫描版走视觉通道用；渲染失败返回空）。
+    private static func renderPdfPages(_ url: URL, limit: Int) -> [NSImage] {
+        guard limit > 0, let doc = PDFDocument(url: url) else { return [] }
+        var images: [NSImage] = []
+        for i in 0..<min(limit, doc.pageCount) {
+            guard let page = doc.page(at: i) else { continue }
+            // 页面原始尺寸渲染（PDF 点位），vision 侧 jpegData 再压边
+            let bounds = page.bounds(for: .mediaBox)
+            let img = page.thumbnail(of: CGSize(width: bounds.width, height: bounds.height), for: .mediaBox)
+            images.append(img)
+        }
+        return images
     }
 
     /// Text extraction: plain-text extensions read directly; PDF via PDFKit. Nil = not readable.
