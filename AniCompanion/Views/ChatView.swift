@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: - ChatView
 
@@ -28,6 +29,11 @@ struct ChatView: View {
     @State private var skillPanelVisible = false
     /// Keyboard-highlighted row while the panel is open.
     @State private var skillHighlightIndex = 0
+
+    // MARK: 贴图（多模态输入）
+
+    /// Images attached to the next message (paste ⌘V / drag & drop / file picker).
+    @State private var pendingImages: [NSImage] = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -147,6 +153,35 @@ struct ChatView: View {
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
 
+            // MARK: - 待发送图片缩略图（贴图）
+
+            if !pendingImages.isEmpty {
+                HStack(spacing: 8) {
+                    ForEach(Array(pendingImages.enumerated()), id: \.offset) { index, img in
+                        ZStack(alignment: .topTrailing) {
+                            Image(nsImage: img)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 52, height: 52)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                            Button {
+                                pendingImages.remove(at: index)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.white)
+                                    .shadow(radius: 2)
+                            }
+                            .buttonStyle(.plain)
+                            .offset(x: 5, y: -5)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 8)
+            }
+
             // MARK: - Skill chips（选中技能挂在输入框上）
 
             if !selectedSkills.isEmpty {
@@ -197,75 +232,7 @@ struct ChatView: View {
                         ? "Stop listening"
                         : (conversationController.isSpeaking ? "Interrupt & speak" : "Start voice input")))
 
-                // Multi-line input field: auto-grows 1–6 lines (scrolls beyond),
-                // Enter sends / Shift+Enter inserts a newline.
-                ZStack(alignment: .topLeading) {
-                    TextEditor(text: $inputText)
-                        .font(.system(size: 14))
-                        .scrollContentBackground(.hidden)
-                        .frame(minHeight: inputEditorHeight)
-                        .frame(maxHeight: 132, alignment: .topLeading)
-
-                    if inputText.isEmpty {
-                        Text("Type a message...")
-                            .font(.system(size: 14))
-                            .foregroundStyle(.secondary.opacity(0.6))
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 8)
-                            .allowsHitTesting(false)
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 0)
-                .background(
-                    RoundedRectangle(cornerRadius: 18)
-                        .fill(Color.white.opacity(0.08))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18)
-                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                )
-                .focused($isInputFocused)
-                .onChange(of: inputText) { _, newValue in
-                    // 行首 `/` 打开技能面板，其余输入关闭；query = / 后的文本
-                    if newValue.hasPrefix("/") {
-                        skillPanelVisible = true
-                        skillHighlightIndex = 0
-                    } else if skillPanelVisible {
-                        skillPanelVisible = false
-                    }
-                }
-                .onKeyPress(.return, phases: .down) { press in
-                    // 技能面板开着：Enter 选中高亮技能，不发送
-                    if skillPanelVisible, !press.modifiers.contains(.shift) {
-                        if filteredSkills.indices.contains(skillHighlightIndex) {
-                            attachSkill(filteredSkills[skillHighlightIndex])
-                        }
-                        return .handled
-                    }
-                    // Shift+Return (and any other modifier combo) falls through to a newline;
-                    // bare Return sends. Note: IME candidate confirmation also lands here —
-                    // if that proves annoying in practice, drop this and keep button-send.
-                    guard !press.modifiers.contains(.shift) else { return .ignored }
-                    sendMessage()
-                    return .handled
-                }
-                .onKeyPress(.downArrow, phases: .down) { _ in
-                    guard skillPanelVisible, skillHighlightIndex < filteredSkills.count - 1 else { return .ignored }
-                    skillHighlightIndex += 1
-                    return .handled
-                }
-                .onKeyPress(.upArrow, phases: .down) { _ in
-                    guard skillPanelVisible, skillHighlightIndex > 0 else { return .ignored }
-                    skillHighlightIndex -= 1
-                    return .handled
-                }
-                .onKeyPress(.escape, phases: .down) { _ in
-                    guard skillPanelVisible else { return .ignored }
-                    skillPanelVisible = false
-                    inputText = ""
-                    return .handled
-                }
+                multiLineInput
 
                 // Send / Stop button
                 if conversationController.isStreaming {
@@ -317,6 +284,89 @@ struct ChatView: View {
         return Array(SkillStore.filter(allSkills, query: query).prefix(30))
     }
 
+    /// Multi-line input (auto-grow 1-6 lines, Enter/Shift+Enter) + paste/drop image support.
+    private var multiLineInput: some View {
+                // Multi-line input field: auto-grows 1–6 lines (scrolls beyond),
+            // Enter sends / Shift+Enter inserts a newline.
+            ZStack(alignment: .topLeading) {
+                TextEditor(text: $inputText)
+                    .font(.system(size: 14))
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: inputEditorHeight)
+                    .frame(maxHeight: 132, alignment: .topLeading)
+
+                if inputText.isEmpty {
+                    Text("Type a message...")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.secondary.opacity(0.6))
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 8)
+                        .allowsHitTesting(false)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 0)
+            .background(
+                RoundedRectangle(cornerRadius: 18)
+                    .fill(Color.white.opacity(0.08))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18)
+                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+            )
+            .focused($isInputFocused)
+            .onKeyPress(keys: Set([KeyEquivalent("v")])) { press in
+                if press.modifiers.contains(.command) { pasteImageIfAny() }
+                return .ignored  // 文本粘贴照常
+            }
+            .onDrop(of: [.image], isTargeted: nil) { providers in
+                Self.loadDroppedImages(providers) { img in appendImage(img) }
+                return true
+            }
+            .onChange(of: inputText) { _, newValue in
+                // 行首 `/` 打开技能面板，其余输入关闭；query = / 后的文本
+                if newValue.hasPrefix("/") {
+                    skillPanelVisible = true
+                    skillHighlightIndex = 0
+                } else if skillPanelVisible {
+                    skillPanelVisible = false
+                }
+            }
+            .onKeyPress(.return, phases: .down) { handleReturnKey($0) }
+            .onKeyPress(.downArrow, phases: .down) { _ in handleArrowKey(+1) }
+            .onKeyPress(.upArrow, phases: .down) { _ in handleArrowKey(-1) }
+            .onKeyPress(.escape, phases: .down) { _ in handleEscapeKey() }
+    }
+
+    /// Enter: skill panel open → select the highlighted skill; otherwise send.
+    /// Shift+Return (and any other modifier combo) falls through to a newline.
+    private func handleReturnKey(_ press: KeyPress) -> KeyPress.Result {
+        if skillPanelVisible, !press.modifiers.contains(.shift) {
+            if filteredSkills.indices.contains(skillHighlightIndex) {
+                attachSkill(filteredSkills[skillHighlightIndex])
+            }
+            return .handled
+        }
+        guard !press.modifiers.contains(.shift) else { return .ignored }
+        sendMessage()
+        return .handled
+    }
+
+    private func handleArrowKey(_ delta: Int) -> KeyPress.Result {
+        guard skillPanelVisible else { return .ignored }
+        let next = skillHighlightIndex + delta
+        guard filteredSkills.indices.contains(next) else { return .ignored }
+        skillHighlightIndex = next
+        return .handled
+    }
+
+    private func handleEscapeKey() -> KeyPress.Result {
+        guard skillPanelVisible else { return .ignored }
+        skillPanelVisible = false
+        inputText = ""
+        return .handled
+    }
+
     /// Attach a skill chip, clear the `/` query, close the panel.
     private func attachSkill(_ skill: Skill) {
         if !selectedSkills.contains(skill) {
@@ -344,7 +394,7 @@ struct ChatView: View {
     /// Send the current input text as a message.
     private func sendMessage() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        guard !text.isEmpty || !pendingImages.isEmpty else { return }
 
         inputText = ""
         skillPanelVisible = false
@@ -353,9 +403,61 @@ struct ChatView: View {
         let skills = selectedSkills.map { ["name": $0.name, "content": SkillStore.loadBody(for: $0)] }
         selectedSkills.removeAll()
 
+        // 贴图 → JPEG（最长边 1024，控制体积）随消息发送；网关路由视觉模型
+        let imageData = pendingImages.compactMap { Self.jpegData(from: $0) }
+        pendingImages.removeAll()
+
         Task {
-            await conversationController.sendMessage(text, skills: skills)
+            await conversationController.sendMessage(
+                text.isEmpty ? "（看看这张图）" : text,
+                skills: skills,
+                images: imageData
+            )
         }
+    }
+
+    // MARK: - 贴图输入
+
+    private func pasteImageIfAny() {
+        guard let img = NSPasteboard.general.readObjects(forClasses: [NSImage.self])?.first as? NSImage else { return }
+        appendImage(img)
+    }
+
+    private static func loadDroppedImages(_ providers: [NSItemProvider], onImage: @escaping @Sendable (NSImage) -> Void) {
+        for provider in providers where provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
+            provider.loadObject(ofClass: NSImage.self) { object, _ in
+                if let img = object as? NSImage {
+                    Task { @MainActor in onImage(img) }
+                }
+            }
+        }
+    }
+
+    private func appendImage(_ img: NSImage) {
+        guard pendingImages.count < 4 else { return }  // 与网关每轮 4 图上限对齐
+        pendingImages.append(img)
+    }
+
+    /// 长边压到 1024 的 JPEG（体积与视觉模型注意力平衡）。
+    private static func jpegData(from image: NSImage) -> Data? {
+        let maxSide: CGFloat = 1024
+        var size = image.size
+        if max(size.width, size.height) > maxSide {
+            let scale = maxSide / max(size.width, size.height)
+            size = CGSize(width: size.width * scale, height: size.height * scale)
+        }
+        let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: Int(size.width), pixelsHigh: Int(size.height),
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+        )
+        guard let rep else { return nil }
+        rep.size = size
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        image.draw(in: NSRect(origin: .zero, size: size))
+        NSGraphicsContext.restoreGraphicsState()
+        return rep.representation(using: .jpeg, properties: [.compressionFactor: 0.85])
     }
 
     /// Toggle voice input on or off.

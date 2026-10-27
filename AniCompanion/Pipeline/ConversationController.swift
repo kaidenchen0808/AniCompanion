@@ -250,12 +250,12 @@ final class ConversationController: ObservableObject {
     /// and a new one starts immediately.
     ///
     /// - Parameter text: The user's message text.
-    func sendMessage(_ text: String, skills: [[String: String]] = []) async {
+    func sendMessage(_ text: String, skills: [[String: String]] = [], images: [Data] = []) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
         history.addUserMessage(trimmed)
-        await startChatPipeline(turnSkills: skills)
+        await startChatPipeline(turnSkills: skills, turnImages: images)
     }
 
     /// Regenerate the last assistant reply: drop it and re-run the pipeline against the
@@ -271,7 +271,7 @@ final class ConversationController: ObservableObject {
     /// Launch the chat pipeline task (shared by sendMessage and regenerate): cancels any
     /// active pipeline, bumps the generation so stale cleanup can't clobber the new run,
     /// and runs `runPipeline` in a cancellable task. The caller mutates history FIRST.
-    private func startChatPipeline(turnSkills: [[String: String]] = []) async {
+    private func startChatPipeline(turnSkills: [[String: String]] = [], turnImages: [Data] = []) async {
         // Cancel any ongoing processing (including notifications).
         cancelInternal()
 
@@ -286,7 +286,7 @@ final class ConversationController: ObservableObject {
             guard let self else { return }
 
             do {
-                try await self.runPipeline(turnSkills: turnSkills)
+                try await self.runPipeline(turnSkills: turnSkills, turnImages: turnImages)
             } catch is CancellationError {
                 // Cancellation is expected; no error to report.
                 // Flush the coalesced tail so the half-reply stays on screen (as before throttling).
@@ -853,7 +853,7 @@ final class ConversationController: ObservableObject {
     // MARK: - Pipeline
 
     /// The core pipeline: send chat via the transport -> parse sentences -> TTS in parallel -> play in order.
-    private func runPipeline(suppressSilentResponse: Bool = false, turnSkills: [[String: String]] = []) async throws {
+    private func runPipeline(suppressSilentResponse: Bool = false, turnSkills: [[String: String]] = [], turnImages: [Data] = []) async throws {
         streamThrottle.reset()
         thinkingText = ""
         var contextMessages = buildMessagesWithSystemPrompt()
@@ -894,7 +894,8 @@ final class ConversationController: ObservableObject {
         }
 
         // Send chat request via the transport.
-        try await chatTransport.send(.chat(id: chatId, messages: apiMessages, images: visionImages, skills: turnSkills))
+        let turnAllImages = visionActive ? visionImages + turnImages : turnImages
+        try await chatTransport.send(.chat(id: chatId, messages: apiMessages, images: turnAllImages, skills: turnSkills))
 
         isStreaming = true
         startLipSyncObservation()
