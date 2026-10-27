@@ -36,6 +36,10 @@ struct ChatView: View {
     /// Images attached to the next message (paste ⌘V / drag & drop / file picker).
     @State private var pendingImages: [NSImage] = []
 
+    /// Auto-follow only after the user interacts in THIS window session — reopening
+    /// the window must not yank the viewport to the bottom (bug 2026-10-27).
+    @State private var shouldAutoScroll = false
+
     var body: some View {
         VStack(spacing: 0) {
             // MARK: - Message List
@@ -87,13 +91,14 @@ struct ChatView: View {
                 // Bottom-scroll on NEW messages only (append changes the last id); prepending
                 // older history or mid-list deletion must not yank the viewport.
                 .onChange(of: conversationHistory.messages.last?.id) { _, _ in
-                    scrollToBottom(proxy: scrollProxy)
+                    if shouldAutoScroll { scrollToBottom(proxy: scrollProxy) }
                 }
-                .onChange(of: conversationController.isProcessing) { _, _ in
-                    scrollToBottom(proxy: scrollProxy)
+                .onChange(of: conversationController.isStreaming) { _, streaming in
+                    // 真流式跟底（哪怕刚开窗她在打字）；静态翻转不再拉底
+                    if streaming { shouldAutoScroll = true; scrollToBottom(proxy: scrollProxy) }
                 }
                 .onChange(of: conversationController.streamingText) { _, _ in
-                    scrollToBottom(proxy: scrollProxy)
+                    if conversationController.isStreaming { scrollToBottom(proxy: scrollProxy) }
                 }
             }
 
@@ -170,8 +175,8 @@ struct ChatView: View {
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
                                     .font(.system(size: 12))
-                                    .foregroundStyle(.white)
-                                    .shadow(radius: 2)
+                                    .foregroundStyle(.black.opacity(0.75))
+                                    .background(Circle().fill(.white).padding(1))
                             }
                             .buttonStyle(.plain)
                             .offset(x: 5, y: -5)
@@ -281,6 +286,7 @@ struct ChatView: View {
         .background(Color.clear)
         .onAppear {
             isInputFocused = true
+            shouldAutoScroll = false  // 打开窗口不自动跳底（bug 修复）
             allSkills = SkillStore.scan(root: SkillStore.defaultRoot)
         }
     }
@@ -388,6 +394,7 @@ struct ChatView: View {
         }
         inputText = ""
         skillPanelVisible = false
+        shouldAutoScroll = true
     }
 
     /// Auto-grow height for the input editor: text height measured at a conservative
@@ -412,6 +419,7 @@ struct ChatView: View {
 
         inputText = ""
         skillPanelVisible = false
+        shouldAutoScroll = true
 
         // / 技能面板选中项 → [{name, content}]（SKILL.md 正文，网关截断兜底）
         let skills = selectedSkills.map { ["name": $0.name, "content": SkillStore.loadBody(for: $0)] }
