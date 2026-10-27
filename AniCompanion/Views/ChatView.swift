@@ -36,6 +36,9 @@ struct ChatView: View {
     /// Images attached to the next message (paste ⌘V / drag & drop / file picker).
     @State private var pendingImages: [NSImage] = []
 
+    /// 滚动内容底部 Y（离底检测，驱动回到底部浮标）。
+    @State private var bottomOffset: CGFloat = 0
+
     /// 深度思考开关（默认开；关 = 快问快答，网关对 GLM 端点 thinking:disabled）
     @AppStorage("thinking_enabled") private var thinkingEnabled = true
 
@@ -49,7 +52,15 @@ struct ChatView: View {
 
             ScrollViewReader { scrollProxy in
                 ScrollView {
-                    LazyVStack(spacing: 12) {
+                    // 离底检测:滚动内容底部相对视口位置
+                    GeometryReader { geo in
+                        Color.clear.preference(
+                            key: ScrollBottomOffsetKey.self,
+                            value: geo.frame(in: .named("chatScroll")).maxY
+                        )
+                    }
+                    .frame(height: 0)
+                    LazyVStack(spacing: 16) {
                         // Top-of-list sentinel: appearing (i.e. scrolled to the very top) pages
                         // older history in. No-op when there is nothing older.
                         Color.clear
@@ -102,6 +113,40 @@ struct ChatView: View {
                 }
                 .onChange(of: conversationController.streamingText) { _, _ in
                     if conversationController.isStreaming { scrollToBottom(proxy: scrollProxy) }
+                }
+                .coordinateSpace(name: "chatScroll")
+                .onPreferenceChange(ScrollBottomOffsetKey.self) { newValue in
+                    // 离底 > 400pt 显示浮标;有未读新消息(流式中且离底)带红点
+                    bottomOffset = newValue
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    if showBackToBottom {
+                        Button {
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                scrollToBottom(proxy: scrollProxy, animated: false)
+                            }
+                        } label: {
+                            ZStack(alignment: .topTrailing) {
+                                Circle()
+                                    .fill(Color.black.opacity(0.55))
+                                    .frame(width: 34, height: 34)
+                                    .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 1))
+                                Image(systemName: "arrow.down")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundStyle(.white.opacity(0.85))
+                                if conversationController.isStreaming {
+                                    Circle()
+                                        .fill(Color.red)
+                                        .frame(width: 8, height: 8)
+                                        .offset(x: 2, y: -2)
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.trailing, 8)
+                        .padding(.bottom, 8)
+                        .transition(.opacity.combined(with: .scale))
+                    }
                 }
             }
 
@@ -162,50 +207,6 @@ struct ChatView: View {
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
 
-            // MARK: - 思考开关（快问快答 vs 深度思考）
-
-            HStack(spacing: 6) {
-                Toggle(isOn: $thinkingEnabled) {
-                    Text(thinkingEnabled ? "深度思考" : "快速回答")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                .toggleStyle(.switch)
-                .controlSize(.mini)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 12)
-            .padding(.top, 6)
-
-            // MARK: - 待发送图片缩略图（贴图）
-
-            if !pendingImages.isEmpty {
-                HStack(spacing: 8) {
-                    ForEach(Array(pendingImages.enumerated()), id: \.offset) { index, img in
-                        ZStack(alignment: .topTrailing) {
-                            Image(nsImage: img)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 52, height: 52)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                            Button {
-                                pendingImages.remove(at: index)
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.black.opacity(0.75))
-                                    .background(Circle().fill(.white).padding(1))
-                            }
-                            .buttonStyle(.plain)
-                            .offset(x: 5, y: -5)
-                        }
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, 12)
-                .padding(.top, 8)
-            }
-
             // MARK: - Skill chips（选中技能挂在输入框上）
 
             if !selectedSkills.isEmpty {
@@ -234,69 +235,113 @@ struct ChatView: View {
                 .padding(.top, 8)
             }
 
-            // MARK: - Input Bar
+            // MARK: - Input Card（豆包式输入卡片：附件/输入/工具行一体）
 
-            HStack(spacing: 8) {
-                // Attach button: image → pendingImages; text/PDF → inline content; other → path.
-                Button {
-                    pickAttachment()
-                } label: {
-                    Image(systemName: "paperclip")
-                        .font(.system(size: 15))
-                        .foregroundStyle(.white.opacity(0.7))
-                        .frame(width: 26, height: 26)
-                        .contentShape(Rectangle())
+            VStack(spacing: 8) {
+                // 卡片内部顶部:附件缩略图
+                if !pendingImages.isEmpty {
+                    HStack(spacing: 8) {
+                        ForEach(Array(pendingImages.enumerated()), id: \.offset) { index, img in
+                            ZStack(alignment: .topTrailing) {
+                                Image(nsImage: img)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 52, height: 52)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                Button {
+                                    pendingImages.remove(at: index)
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.black.opacity(0.75))
+                                        .background(Circle().fill(.white).padding(1))
+                                }
+                                .buttonStyle(.plain)
+                                .offset(x: 5, y: -5)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
                 }
-                .buttonStyle(.plain)
-                .help("发送图片或文件")
 
-                // Microphone button (push-to-talk). Disabled in full-duplex mode: there, the VPIO
-                // engine owns the mic while she speaks, so opening STTService's engine here would
-                // grab the same input device twice. In full-duplex you interrupt by just talking.
-                Button {
-                    toggleVoiceInput()
-                } label: {
-                    Image(systemName: conversationController.isListening ? "mic.fill" : "mic")
-                        .font(.system(size: 16))
-                        .foregroundStyle(conversationController.isListening ? .red : .secondary)
-                        .frame(width: 28, height: 28)
-                }
-                .buttonStyle(.plain)
-                .disabled(conversationController.fullDuplexEnabled)
-                .help(conversationController.fullDuplexEnabled
-                    ? "Voice interruption is on — just talk to interrupt her"
-                    : (conversationController.isListening
-                        ? "Stop listening"
-                        : (conversationController.isSpeaking ? "Interrupt & speak" : "Start voice input")))
-
+                // 输入区（自适应高度）
                 multiLineInput
 
-                // Send / Stop button
-                if conversationController.isStreaming {
+                // 卡片内部底部:工具行
+                HStack(spacing: 14) {
+                    Toggle(isOn: $thinkingEnabled) {
+                        Text("深度思考")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+
                     Button {
-                        conversationController.cancel()
+                        pickAttachment()
                     } label: {
-                        Image(systemName: "stop.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundStyle(.white.opacity(0.85))
+                        Image(systemName: "paperclip")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.secondary)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .help("Stop generating")
-                    .transition(.scale.combined(with: .opacity))
-                } else {
+                    .help("发送图片或文件")
+
                     Button {
-                        sendMessage()
+                        toggleVoiceInput()
                     } label: {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundStyle(canSend ? .blue : .secondary.opacity(0.5))
+                        Image(systemName: conversationController.isListening ? "mic.fill" : "mic")
+                            .font(.system(size: 14))
+                            .foregroundStyle(conversationController.isListening ? Color.red : Color.secondary)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .disabled(!canSend)
-                    .help("Send message")
-                    .transition(.scale.combined(with: .opacity))
+                    .disabled(conversationController.fullDuplexEnabled)
+                    .help(conversationController.fullDuplexEnabled
+                        ? "Voice interruption is on — just talk to interrupt her"
+                        : (conversationController.isListening ? "Stop listening" : "Start voice input"))
+
+                    Spacer(minLength: 0)
+
+                    // 发送/停止（卡片内右下角圆形按钮）
+                    if conversationController.isStreaming {
+                        Button {
+                            conversationController.cancel()
+                        } label: {
+                            Image(systemName: "stop.circle.fill")
+                                .font(.system(size: 26))
+                                .foregroundStyle(.white.opacity(0.85))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Stop generating")
+                        .transition(.scale.combined(with: .opacity))
+                    } else {
+                        Button {
+                            sendMessage()
+                        } label: {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.system(size: 26))
+                                .foregroundStyle(canSend ? Color(red: 0.35, green: 0.55, blue: 1.0) : Color.secondary.opacity(0.4))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!canSend)
+                        .help("Send message")
+                        .transition(.scale.combined(with: .opacity))
+                    }
                 }
             }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.white.opacity(0.06))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+            )
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .background(Color.black.opacity(0.2))
@@ -310,6 +355,9 @@ struct ChatView: View {
     }
 
     // MARK: - Helpers
+
+    /// Back-to-bottom FAB shows once the viewport is a screen away from the bottom.
+    private var showBackToBottom: Bool { bottomOffset > 700 }
 
     /// Whether the send button should be enabled.
     private var canSend: Bool {
@@ -334,7 +382,7 @@ struct ChatView: View {
                     .frame(maxHeight: 132, alignment: .topLeading)
 
                 if inputText.isEmpty {
-                    Text("Type a message...")
+                    Text("给她说点什么…（/ 选技能 · ⌘V 贴图 · Shift+Enter 换行）")
                         .font(.system(size: 14))
                         .foregroundStyle(.secondary.opacity(0.6))
                         .padding(.horizontal, 4)
@@ -553,7 +601,7 @@ struct ChatView: View {
     }
 
     /// Scroll to the bottom of the message list.
-    private func scrollToBottom(proxy: ScrollViewProxy) {
+    private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool = true) {
         if conversationController.isStreaming {
             withAnimation(.easeOut(duration: 0.2)) {
                 proxy.scrollTo("typing-indicator", anchor: .bottom)
@@ -571,6 +619,15 @@ struct ChatView: View {
         guard let anchorId = conversationHistory.messages.first?.id else { return }
         guard conversationHistory.loadOlder(limit: 100) else { return }
         proxy.scrollTo(anchorId, anchor: .top)
+    }
+}
+
+// MARK: - Scroll Bottom Offset（离底检测）
+
+private struct ScrollBottomOffsetKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 
@@ -636,7 +693,7 @@ private struct MessageBubbleView: View {
                     .padding(.top, 4)
             }
 
-            VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
+            VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
                 if !isUser, let thinking = message.thinking, !thinking.isEmpty {
                     ThinkingPanel(text: thinking, isThinking: false)
                 }
@@ -653,12 +710,11 @@ private struct MessageBubbleView: View {
                                 .fill(Color.blue.opacity(0.6))
                         )
                 } else {
-                    VStack(alignment: .leading, spacing: 8) {
+                    // 千问范式:AI 回复不用气泡 —— 全宽文档流直渲;代码块/表格/公式等
+                    // 富媒体元素自带深色圆角卡,形成"文档嵌卡片"层次。
+                    VStack(alignment: .leading, spacing: 10) {
                         MarkdownView(text: message.displayContent)
 
-                        // Local file paths found in the reply → file cards (Quick Look on tap).
-                        // Image paths are skipped here — they render inline via the markdown
-                        // image pipeline when she formats them as ![](path).
                         let cards = FilePathDetector.matches(in: message.displayContent)
                             .filter { !isImagePath($0.absolute) }
                         if !cards.isEmpty {
@@ -666,39 +722,27 @@ private struct MessageBubbleView: View {
                                 ForEach(cards, id: \.raw) { FileCardView(match: $0) }
                             }
                         }
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(Color.white.opacity(0.1))
-                    )
-                }
 
-                HStack(spacing: 8) {
-                    if !isUser && hovering {
-                        // Hover action bar (Doubao-style): copy + regenerate
-                        HStack(spacing: 4) {
-                            hoverButton(
-                                icon: copied ? "checkmark" : "doc.on.doc",
-                                help: copied ? "Copied" : "Copy",
-                                action: copyMessage
-                            )
-                            if isLastAssistant {
-                                hoverButton(
-                                    icon: "arrow.clockwise",
-                                    help: "Regenerate",
-                                    action: { onRegenerate?() }
-                                )
+                        // hover 工具条:消息底部一排小图标(复制/重生成/删除)
+                        if hovering {
+                            HStack(spacing: 14) {
+                                hoverTool(icon: copied ? "checkmark" : "doc.on.doc", help: "复制") { copyMessage() }
+                                if isLastAssistant {
+                                    hoverTool(icon: "arrow.clockwise", help: "重新生成") { onRegenerate?() }
+                                }
+                                hoverTool(icon: "trash", help: "删除") { onDelete?() }
+                                Spacer(minLength: 0)
                             }
+                            .padding(.top, 2)
+                            .transition(.opacity)
                         }
-                        .transition(.opacity)
                     }
-
-                    Text(formattedTimestamp)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary.opacity(0.6))
                 }
+
+                Text(formattedTimestamp)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary.opacity(0.5))
+                    .opacity(hovering ? 1 : 0)
             }
             .contextMenu {
                 Button {
@@ -741,13 +785,12 @@ private struct MessageBubbleView: View {
             .contains((path as NSString).pathExtension.lowercased())
     }
 
-    /// Small ghost icon button for the hover action bar.
-    private func hoverButton(icon: String, help: String, action: @escaping () -> Void) -> some View {
+    /// Small ghost icon button for the hover tool bar (Doubao-style bottom row).
+    private func hoverTool(icon: String, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 11))
-                .foregroundStyle(.white.opacity(0.55))
-                .padding(4)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
