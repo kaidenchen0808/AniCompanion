@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import PDFKit
 
 // MARK: - ChatView
 
@@ -213,6 +214,19 @@ struct ChatView: View {
             // MARK: - Input Bar
 
             HStack(spacing: 8) {
+                // Attach button: image → pendingImages; text/PDF → inline content; other → path.
+                Button {
+                    pickAttachment()
+                } label: {
+                    Image(systemName: "paperclip")
+                        .font(.system(size: 15))
+                        .foregroundStyle(.white.opacity(0.7))
+                        .frame(width: 26, height: 26)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("发送图片或文件")
+
                 // Microphone button (push-to-talk). Disabled in full-duplex mode: there, the VPIO
                 // engine owns the mic while she speaks, so opening STTService's engine here would
                 // grab the same input device twice. In full-duplex you interrupt by just talking.
@@ -431,6 +445,46 @@ struct ChatView: View {
                 }
             }
         }
+    }
+
+    /// 📎 — file picker; route by type: image / readable text (incl. PDF) / path reference.
+    private func pickAttachment() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.message = "选择要发给她的图片或文件"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        if let img = NSImage(contentsOf: url) {
+            appendImage(img)
+            return
+        }
+        // 文本类（含 PDF）内联抽取：她直接读到内容，快
+        if let text = Self.extractText(from: url), !text.isEmpty {
+            let name = url.lastPathComponent
+            let clipped = text.count > 20_000 ? String(text.prefix(20_000)) + "\n…（已截断）" : text
+            inputText += (inputText.isEmpty ? "" : "\n") + "[文件 \(name)]\n\(clipped)\n[文件结束 —— 关于这个文件：]"
+            return
+        }
+        // 其他（二进制/超大）：附路径，她可用 Read 工具看
+        inputText += (inputText.isEmpty ? "" : " ") + url.path
+    }
+
+    /// Text extraction: plain-text extensions read directly; PDF via PDFKit. Nil = not readable.
+    private static func extractText(from url: URL) -> String? {
+        let ext = url.pathExtension.lowercased()
+        let textExtensions: Set<String> = ["txt", "md", "json", "csv", "log", "swift", "ts", "js", "py", "sh", "yaml", "yml", "html", "css", "xml"]
+        if ext == "pdf" {
+            guard let doc = PDFDocument(url: url) else { return nil }
+            var out = ""
+            for i in 0..<doc.pageCount {
+                if let page = doc.page(at: i), let t = page.string { out += t + "\n" }
+                if out.count > 20_000 { break }
+            }
+            return out.isEmpty ? nil : out
+        }
+        guard textExtensions.contains(ext) else { return nil }
+        return try? String(contentsOf: url, encoding: .utf8)
     }
 
     private func appendImage(_ img: NSImage) {
