@@ -36,6 +36,17 @@ struct ChatView: View {
     /// Images attached to the next message (paste ⌘V / drag & drop / file picker).
     @State private var pendingImages: [NSImage] = []
 
+    /// 非图片附件（文本/PDF/二进制）：预览条显示文件卡片，发送时把 payload 拼进文本。
+    /// payload 两种形态：内联全文（[文件 …]…，文本/PDF）或裸路径（二进制，网关失信兜底会代读）。
+    struct PendingFile: Identifiable {
+        let id = UUID()
+        let name: String
+        let icon: String
+        let payload: String
+        var isPath: Bool { payload.hasPrefix("/") || payload.hasPrefix("~") }
+    }
+    @State private var pendingFiles: [PendingFile] = []
+
     /// 滚动内容底部 Y（离底检测，驱动回到底部浮标）。
     @State private var bottomOffset: CGFloat = 0
 
@@ -238,8 +249,8 @@ struct ChatView: View {
             // MARK: - Input Card（豆包式输入卡片：附件/输入/工具行一体）
 
             VStack(spacing: 8) {
-                // 卡片内部顶部:附件缩略图
-                if !pendingImages.isEmpty {
+                // 卡片内部顶部:附件缩略图 + 文件卡片
+                if !pendingImages.isEmpty || !pendingFiles.isEmpty {
                     HStack(spacing: 8) {
                         ForEach(Array(pendingImages.enumerated()), id: \.offset) { index, img in
                             ZStack(alignment: .topTrailing) {
@@ -250,6 +261,38 @@ struct ChatView: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 8))
                                 Button {
                                     pendingImages.remove(at: index)
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.black.opacity(0.75))
+                                        .background(Circle().fill(.white).padding(1))
+                                }
+                                .buttonStyle(.plain)
+                                .offset(x: 5, y: -5)
+                            }
+                        }
+                        // 文件卡片：图标 + 文件名 + 形态标注（内联/路径），与图片缩略图同一条
+                        ForEach(pendingFiles) { file in
+                            ZStack(alignment: .topTrailing) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: file.icon)
+                                        .font(.system(size: 18))
+                                        .foregroundStyle(.secondary)
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(file.name)
+                                            .font(.system(size: 11))
+                                            .lineLimit(1)
+                                        Text(file.isPath ? "路径 · 她会代读" : "已内联")
+                                            .font(.system(size: 9))
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 6)
+                                .frame(maxWidth: 170)
+                                .background(RoundedRectangle(cornerRadius: 8).fill(.quaternary.opacity(0.4)))
+                                Button {
+                                    pendingFiles.removeAll { $0.id == file.id }
                                 } label: {
                                     Image(systemName: "xmark.circle.fill")
                                         .font(.system(size: 12))
@@ -481,7 +524,7 @@ struct ChatView: View {
     /// Send the current input text as a message.
     private func sendMessage() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty || !pendingImages.isEmpty else { return }
+        guard !text.isEmpty || !pendingImages.isEmpty || !pendingFiles.isEmpty else { return }
 
         inputText = ""
         skillPanelVisible = false
@@ -491,13 +534,21 @@ struct ChatView: View {
         let skills = selectedSkills.map { ["name": $0.name, "content": SkillStore.loadBody(for: $0)] }
         selectedSkills.removeAll()
 
+        // 非图片附件载荷拼在文字前（内联文件/路径），纯图无文字时保留占位
+        var outgoing = text
+        if !pendingFiles.isEmpty {
+            outgoing = pendingFiles.map(\.payload).joined(separator: "\n") + (outgoing.isEmpty ? "" : "\n" + outgoing)
+        }
+        if outgoing.isEmpty && !pendingImages.isEmpty { outgoing = "（看看这张图）" }
+        pendingFiles.removeAll()
+
         // 贴图 → JPEG（最长边 1024，控制体积）随消息发送；网关路由视觉模型
         let imageData = pendingImages.compactMap { Self.jpegData(from: $0) }
         pendingImages.removeAll()
 
         Task {
             await conversationController.sendMessage(
-                text.isEmpty ? "（看看这张图）" : text,
+                outgoing,
                 skills: skills,
                 images: imageData,
                 thinking: thinkingEnabled
@@ -523,6 +574,7 @@ struct ChatView: View {
     }
 
     /// 📎 — file picker; route by type: image / readable text (incl. PDF) / path reference.
+    /// 非图片统一进 pendingFiles（预览条文件卡片），发送时才拼进文本——附件有了可见反馈。
     private func pickAttachment() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
@@ -534,15 +586,15 @@ struct ChatView: View {
             appendImage(img)
             return
         }
+        let name = url.lastPathComponent
         // 文本类（含 PDF）内联抽取：她直接读到内容，快
         if let text = Self.extractText(from: url), !text.isEmpty {
-            let name = url.lastPathComponent
             let clipped = text.count > 20_000 ? String(text.prefix(20_000)) + "\n…（已截断）" : text
-            inputText += (inputText.isEmpty ? "" : "\n") + "[文件 \(name)]\n\(clipped)\n[文件结束 —— 关于这个文件：]"
+            pendingFiles.append(PendingFile(name: name, icon: "doc.text", payload: "[文件 \(name)]\n\(clipped)\n[文件结束 —— 关于这个文件：]"))
             return
         }
-        // 其他（二进制/超大）：附路径，她可用 Read 工具看
-        inputText += (inputText.isEmpty ? "" : " ") + url.path
+        // 其他（二进制/超大）：附路径，网关失信兜底会自动派 Read 代读
+        pendingFiles.append(PendingFile(name: name, icon: "doc.badge.ellipsis", payload: url.path))
     }
 
     /// Text extraction: plain-text extensions read directly; PDF via PDFKit. Nil = not readable.
