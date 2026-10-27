@@ -17,7 +17,7 @@ extension ChatTransport {
 enum WSOutgoing: Sendable {
     /// A chat turn. `images` (JPEG data) are optional screen-vision frames attached to the final
     /// user message as OpenAI content-parts; empty for the normal text-only path.
-    case chat(id: String, messages: [[String: String]], images: [Data], skills: [[String: String]])
+    case chat(id: String, messages: [[String: String]], images: [Data], skills: [[String: String]], thinking: Bool)
     case cancel(ref: String)
     case ack(ref: String)
 }

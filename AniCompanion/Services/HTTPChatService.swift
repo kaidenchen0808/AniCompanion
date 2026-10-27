@@ -115,8 +115,8 @@ final class HTTPChatService: ObservableObject, ChatTransport {
 
     func send(_ message: WSOutgoing) async throws {
         switch message {
-        case .chat(let id, let messages, let images, let skills):
-            startChat(ref: id, messages: messages, images: images, skills: skills)
+        case .chat(let id, let messages, let images, let skills, let thinking):
+            startChat(ref: id, messages: messages, images: images, skills: skills, thinking: thinking)
         case .cancel(let ref):
             activeTasks[ref]?.cancel()
             activeTasks[ref] = nil
@@ -407,17 +407,17 @@ final class HTTPChatService: ObservableObject, ChatTransport {
 
     // MARK: - Streaming Chat
 
-    private func startChat(ref: String, messages: [[String: String]], images: [Data], skills: [[String: String]]) {
+    private func startChat(ref: String, messages: [[String: String]], images: [Data], skills: [[String: String]], thinking: Bool) {
         // Replace any prior request reusing this ref.
         activeTasks[ref]?.cancel()
         let task = Task { [weak self] in
-            await self?.streamChat(ref: ref, messages: messages, images: images, skills: skills)
+            await self?.streamChat(ref: ref, messages: messages, images: images, skills: skills, thinking: thinking)
             self?.activeTasks[ref] = nil
         }
         activeTasks[ref] = task
     }
 
-    private func streamChat(ref: String, messages: [[String: String]], images: [Data], skills: [[String: String]]) async {
+    private func streamChat(ref: String, messages: [[String: String]], images: [Data], skills: [[String: String]], thinking: Bool) async {
         guard let url = URL(string: baseURL + "/v1/chat/completions") else {
             eventsContinuation.yield(.error(ref: ref, message: "Invalid \(serviceName) endpoint URL: \(baseURL)"))
             return
@@ -434,6 +434,7 @@ final class HTTPChatService: ObservableObject, ChatTransport {
         var body: [String: Any] = ["model": model, "messages": Self.encodeMessages(messages, images: images), "stream": true]
         if !skills.isEmpty {
             body["skills"] = skills  // / 技能面板选中项，网关拼进人格 system（不落库）
+        body["thinking"] = thinking  // 思考开关（false = 快问快答，GLM 端点 disabled）
         }
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)

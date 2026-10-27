@@ -36,6 +36,9 @@ struct ChatView: View {
     /// Images attached to the next message (paste ⌘V / drag & drop / file picker).
     @State private var pendingImages: [NSImage] = []
 
+    /// 深度思考开关（默认开；关 = 快问快答，网关对 GLM 端点 thinking:disabled）
+    @AppStorage("thinking_enabled") private var thinkingEnabled = true
+
     /// Auto-follow only after the user interacts in THIS window session — reopening
     /// the window must not yank the viewport to the bottom (bug 2026-10-27).
     @State private var shouldAutoScroll = false
@@ -158,6 +161,21 @@ struct ChatView: View {
                 .background(Color.white.opacity(0.05))
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
+
+            // MARK: - 思考开关（快问快答 vs 深度思考）
+
+            HStack(spacing: 6) {
+                Toggle(isOn: $thinkingEnabled) {
+                    Text(thinkingEnabled ? "深度思考" : "快速回答")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 6)
 
             // MARK: - 待发送图片缩略图（贴图）
 
@@ -433,7 +451,8 @@ struct ChatView: View {
             await conversationController.sendMessage(
                 text.isEmpty ? "（看看这张图）" : text,
                 skills: skills,
-                images: imageData
+                images: imageData,
+                thinking: thinkingEnabled
             )
         }
     }

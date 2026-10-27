@@ -53,6 +53,10 @@ final class ConversationController: ObservableObject {
     /// message's `thinking` field when the stream ends.
     @Published private(set) var thinkingText: String = ""
 
+    /// Whether THIS turn's thinking toggle is on (off = ignore stray reasoning chunks —
+    /// the endpoint occasionally ignores `disabled` under load, UI stays clean regardless).
+    private var thinkingEnabledForTurn = true
+
     /// In-flight [lookup] background-query status (nil = idle). Drives the persistent
     /// indicator above the input — set from the transport's status frames / poll field.
     @Published private(set) var lookupStatusText: String?
@@ -250,12 +254,13 @@ final class ConversationController: ObservableObject {
     /// and a new one starts immediately.
     ///
     /// - Parameter text: The user's message text.
-    func sendMessage(_ text: String, skills: [[String: String]] = [], images: [Data] = []) async {
+    func sendMessage(_ text: String, skills: [[String: String]] = [], images: [Data] = [], thinking: Bool = true) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
         history.addUserMessage(trimmed)
-        await startChatPipeline(turnSkills: skills, turnImages: images)
+        thinkingEnabledForTurn = thinking
+        await startChatPipeline(turnSkills: skills, turnImages: images, turnThinking: thinking)
     }
 
     /// Regenerate the last assistant reply: drop it and re-run the pipeline against the
@@ -271,7 +276,7 @@ final class ConversationController: ObservableObject {
     /// Launch the chat pipeline task (shared by sendMessage and regenerate): cancels any
     /// active pipeline, bumps the generation so stale cleanup can't clobber the new run,
     /// and runs `runPipeline` in a cancellable task. The caller mutates history FIRST.
-    private func startChatPipeline(turnSkills: [[String: String]] = [], turnImages: [Data] = []) async {
+    private func startChatPipeline(turnSkills: [[String: String]] = [], turnImages: [Data] = [], turnThinking: Bool = true) async {
         // Cancel any ongoing processing (including notifications).
         cancelInternal()
 
@@ -286,7 +291,7 @@ final class ConversationController: ObservableObject {
             guard let self else { return }
 
             do {
-                try await self.runPipeline(turnSkills: turnSkills, turnImages: turnImages)
+                try await self.runPipeline(turnSkills: turnSkills, turnImages: turnImages, turnThinking: turnThinking)
             } catch is CancellationError {
                 // Cancellation is expected; no error to report.
                 // Flush the coalesced tail so the half-reply stays on screen (as before throttling).
@@ -686,7 +691,7 @@ final class ConversationController: ObservableObject {
             }
 
         case .reasoning(let ref, let content):
-            if ref == currentChatRef || ref == currentNotifyRef {
+            if thinkingEnabledForTurn, ref == currentChatRef || ref == currentNotifyRef {
                 thinkingText += content
             }
 
@@ -853,7 +858,7 @@ final class ConversationController: ObservableObject {
     // MARK: - Pipeline
 
     /// The core pipeline: send chat via the transport -> parse sentences -> TTS in parallel -> play in order.
-    private func runPipeline(suppressSilentResponse: Bool = false, turnSkills: [[String: String]] = [], turnImages: [Data] = []) async throws {
+    private func runPipeline(suppressSilentResponse: Bool = false, turnSkills: [[String: String]] = [], turnImages: [Data] = [], turnThinking: Bool = true) async throws {
         streamThrottle.reset()
         thinkingText = ""
         var contextMessages = buildMessagesWithSystemPrompt()
@@ -895,7 +900,7 @@ final class ConversationController: ObservableObject {
 
         // Send chat request via the transport.
         let turnAllImages = visionActive ? visionImages + turnImages : turnImages
-        try await chatTransport.send(.chat(id: chatId, messages: apiMessages, images: turnAllImages, skills: turnSkills))
+        try await chatTransport.send(.chat(id: chatId, messages: apiMessages, images: turnAllImages, skills: turnSkills, thinking: turnThinking))
 
         isStreaming = true
         startLipSyncObservation()
