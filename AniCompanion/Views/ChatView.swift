@@ -588,7 +588,7 @@ struct ChatView: View {
         }
         let name = url.lastPathComponent
         // 文本类（含文字层 PDF）内联抽取：她直接读到内容，快
-        if let text = Self.extractText(from: url), !text.isEmpty {
+        if let text = Self.extractText(from: url) ?? Self.extractOfficeText(from: url), !text.isEmpty {
             let clipped = text.count > 20_000 ? String(text.prefix(20_000)) + "\n…（已截断）" : text
             pendingFiles.append(PendingFile(name: name, icon: "doc.text", payload: "[文件 \(name)]\n\(clipped)\n[文件结束 —— 关于这个文件：]"))
             return
@@ -623,6 +623,66 @@ struct ChatView: View {
             images.append(img)
         }
         return images
+    }
+
+    /// Office 文档（docx/pptx/xlsx）文本抽取——系统工具链，零三方依赖（2026-10-27 实验验证）：
+    /// docx → textutil；pptx → slides XML 的 <a:t>；xlsx → sharedStrings 的 <t>。
+    /// Process 跑固定二进制+固定参数（不经 shell，路径来自 NSOpenPanel，无注入面）。
+    private static func extractOfficeText(from url: URL) -> String? {
+        switch url.pathExtension.lowercased() {
+        case "docx":
+            let out = runSystemTool("/usr/bin/textutil", ["-convert", "txt", "-stdout", url.path]) ?? ""
+            return out.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : out
+        case "pptx":
+            let xml = runSystemTool("/usr/bin/unzip", ["-p", url.path, "ppt/slides/slide*.xml"]) ?? ""
+            return xmlText(xml, tag: "a:t")
+        case "xlsx":
+            let xml = runSystemTool("/usr/bin/unzip", ["-p", url.path, "xl/sharedStrings.xml"]) ?? ""
+            return xmlText(xml, tag: "t")
+        default:
+            return nil
+        }
+    }
+
+    /// 跑系统工具拿 stdout（失败/非零退出返回 nil；秒级命令不做超时）。
+    private static func runSystemTool(_ path: String, _ arguments: [String]) -> String? {
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: path)
+        proc.arguments = arguments
+        let pipe = Pipe()
+        proc.standardOutput = pipe
+        proc.standardError = Pipe()
+        do {
+            try proc.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            proc.waitUntilExit()
+            return String(data: data, encoding: .utf8)
+        } catch {
+            return nil
+        }
+    }
+
+    /// 从 OOXML 流里抽出指定标签的文本，实体还原，按行拼接（空=返回 nil）。
+    private static func xmlText(_ xml: String, tag: String) -> String? {
+        let pattern = "<\(tag)[^>]*>([^<]*)</\(tag)>"
+        let regex = try? NSRegularExpression(pattern: pattern)
+        let ns = xml as NSString
+        let lines = regex.map { regex in
+            regex.matches(in: xml, range: NSRange(location: 0, length: ns.length)).compactMap { match in
+                match.numberOfRanges > 1 ? ns.substring(with: match.range(at: 1)) : nil
+            }
+        } ?? []
+        let text = lines
+            .map { $0
+                .replacingOccurrences(of: "&amp;", with: "&")
+                .replacingOccurrences(of: "&lt;", with: "<")
+                .replacingOccurrences(of: "&gt;", with: ">")
+                .replacingOccurrences(of: "&quot;", with: "\"")
+                .replacingOccurrences(of: "&apos;", with: "'")
+            }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        return text.isEmpty ? nil : text
     }
 
     /// Text extraction: plain-text extensions read directly; PDF via PDFKit. Nil = not readable.
