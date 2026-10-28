@@ -448,8 +448,8 @@ struct ChatView: View {
                 if press.modifiers.contains(.command) { pasteImageIfAny() }
                 return .ignored  // 文本粘贴照常
             }
-            .onDrop(of: [.image], isTargeted: nil) { providers in
-                Self.loadDroppedImages(providers) { img in appendImage(img) }
+            .onDrop(of: [.image, .fileURL], isTargeted: nil) { providers in
+                handleDroppedAttachments(providers)
                 return true
             }
             .onChange(of: inputText) { _, newValue in
@@ -563,25 +563,19 @@ struct ChatView: View {
         appendImage(img)
     }
 
-    private static func loadDroppedImages(_ providers: [NSItemProvider], onImage: @escaping @Sendable (NSImage) -> Void) {
-        for provider in providers where provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
-            provider.loadObject(ofClass: NSImage.self) { object, _ in
-                if let img = object as? NSImage {
-                    Task { @MainActor in onImage(img) }
-                }
-            }
-        }
-    }
-
     /// 📎 — file picker; route by type: image / readable text (incl. PDF) / path reference.
-    /// 非图片统一进 pendingFiles（预览条文件卡片），发送时才拼进文本——附件有了可见反馈。
     private func pickAttachment() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.message = "选择要发给她的图片或文件"
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        routeAttachment(url: url)
+    }
 
+    /// 附件路由核心（📎 与拖拽共用）：图片→pendingImages；文本/文字PDF/Office→内联卡片；
+    /// 扫描PDF→渲染图走视觉；其他→路径卡片（网关失信兜底代读）。
+    private func routeAttachment(url: URL) {
         if let img = NSImage(contentsOf: url) {
             appendImage(img)
             return
@@ -604,6 +598,33 @@ struct ChatView: View {
         }
         // 其他（二进制/超大）：附路径，网关失信兜底会自动派 Read 代读
         pendingFiles.append(PendingFile(name: name, icon: "doc.badge.ellipsis", payload: url.path))
+    }
+
+    /// 拖拽附件：图片直接进 pendingImages，文件（fileURL）走与 📎 相同的路由——
+    /// 此前只认图片，拖 PDF/Office/文本被静默丢弃（用户以为传上了，她没收到→答非所问，2026-10-28 实测反馈）。
+    private func handleDroppedAttachments(_ providers: [NSItemProvider]) {
+        for provider in providers {
+            if provider.canLoadObject(ofClass: NSImage.self) {
+                provider.loadObject(ofClass: NSImage.self) { object, _ in
+                    if let img = object as? NSImage {
+                        Task { @MainActor in appendImage(img) }
+                    }
+                }
+                continue
+            }
+            guard provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) else { continue }
+            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { data, _ in
+                let url: URL?
+                switch data {
+                case let u as URL: url = u
+                case let d as Data: url = (try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSURL.self, from: d)) as URL?
+                default: url = nil
+                }
+                if let url {
+                    Task { @MainActor in routeAttachment(url: url) }
+                }
+            }
+        }
     }
 
     /// PDF 页数（0=打不开/损坏）。 */
