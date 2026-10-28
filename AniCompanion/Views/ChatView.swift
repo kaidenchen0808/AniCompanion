@@ -405,6 +405,8 @@ struct ChatView: View {
     /// Whether the send button should be enabled.
     private var canSend: Bool {
         !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !pendingImages.isEmpty
+            || !pendingFiles.isEmpty
     }
 
     /// Panel list: skills filtered by the text after the leading `/`.
@@ -573,55 +575,67 @@ struct ChatView: View {
         routeAttachment(url: url)
     }
 
-    /// 附件路由核心（📎 与拖拽共用）：图片→pendingImages；文本/文字PDF/Office→内联卡片；
-    /// 扫描PDF→渲染图走视觉；其他→路径卡片（网关失信兜底代读）。
+    /// 附件路由核心（📎 与拖拽共用）：PDF→文字层内联/扫描页渲染；图片→pendingImages；
+    /// 文本/Office→内联卡片；其他→路径卡片（网关失信兜底代读）。
     private func routeAttachment(url: URL) {
-        if let img = NSImage(contentsOf: url) {
-            appendImage(img)
-            return
-        }
+        guard pendingFiles.count < 6 else { return }  // 上限防载荷/预览条双溢出（与图片 4 张同理）
         let name = url.lastPathComponent
-        // 文本类（含文字层 PDF）内联抽取：她直接读到内容，快
-        if let text = Self.extractText(from: url) ?? Self.extractOfficeText(from: url), !text.isEmpty {
-            let clipped = text.count > 20_000 ? String(text.prefix(20_000)) + "\n…（已截断）" : text
-            pendingFiles.append(PendingFile(name: name, icon: "doc.text", payload: "[文件 \(name)]\n\(clipped)\n[文件结束 —— 关于这个文件：]"))
-            return
-        }
-        // 扫描版 PDF（无文字层）：页面渲染成图走视觉通道（GLM-4.5V OCR）——
-        // 此前落路径让 claude Read，但 Read 扫描页是图像、后端模型看不了，必死（2026-10-27 简历实测）
-        if url.pathExtension.lowercased() == "pdf", Self.pdfPageCount(url) > 0 {
+        // PDF 必须在 NSImage 判定之前：macOS 的 NSImage(contentsOf:) 对 PDF 恒成功
+        // （产出单页低清栅格图，吞掉文字层与多页）——2026-10-28 用户实测：产品 PDF 被
+        // 当成一张模糊图发给视觉模型，叠加历史话题后答成了"简历"。
+        if url.pathExtension.lowercased() == "pdf" {
+            if let text = Self.extractText(from: url), !text.isEmpty {
+                let clipped = text.count > 20_000 ? String(text.prefix(20_000)) + "\n…（已截断）" : text
+                pendingFiles.append(PendingFile(name: name, icon: "doc.text", payload: "[文件 \(name)]\n\(clipped)\n[文件结束 —— 关于这个文件：]"))
+                return
+            }
+            // 扫描版（无文字层）：渲染前 N 页走视觉通道
             let pages = Self.renderPdfPages(url, limit: 4 - pendingImages.count)
             if !pages.isEmpty {
                 pages.forEach(appendImage)
                 return
             }
+            pendingFiles.append(PendingFile(name: name, icon: "doc.badge.ellipsis", payload: url.path))
+            return
+        }
+        if let img = NSImage(contentsOf: url) {
+            appendImage(img)
+            return
+        }
+        // 文本类/Office 内联抽取：她直接读到内容，快
+        if let text = Self.extractText(from: url) ?? Self.extractOfficeText(from: url), !text.isEmpty {
+            let clipped = text.count > 20_000 ? String(text.prefix(20_000)) + "\n…（已截断）" : text
+            pendingFiles.append(PendingFile(name: name, icon: "doc.text", payload: "[文件 \(name)]\n\(clipped)\n[文件结束 —— 关于这个文件：]"))
+            return
         }
         // 其他（二进制/超大）：附路径，网关失信兜底会自动派 Read 代读
         pendingFiles.append(PendingFile(name: name, icon: "doc.badge.ellipsis", payload: url.path))
     }
 
-    /// 拖拽附件：图片直接进 pendingImages，文件（fileURL）走与 📎 相同的路由——
-    /// 此前只认图片，拖 PDF/Office/文本被静默丢弃（用户以为传上了，她没收到→答非所问，2026-10-28 实测反馈）。
+    /// 拖拽附件：fileURL 优先走与 📎 相同的路由（PDF 若先查 NSImage 会被吃成单页栅格图，
+    /// canLoadObject(NSImage) 对 PDF provider 恒 true）；无 fileURL 的纯图片数据才直读 NSImage。
     private func handleDroppedAttachments(_ providers: [NSItemProvider]) {
         for provider in providers {
+            if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+                provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { data, _ in
+                    let url: URL?
+                    switch data {
+                    case let u as URL: url = u
+                    case let d as Data: url = (try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSURL.self, from: d)) as URL?
+                    case let s as NSString: url = URL(fileURLWithPath: String(s))
+                    default: url = nil
+                    }
+                    if let url {
+                        Task { @MainActor in routeAttachment(url: url) }
+                    }
+                }
+                continue
+            }
             if provider.canLoadObject(ofClass: NSImage.self) {
                 provider.loadObject(ofClass: NSImage.self) { object, _ in
                     if let img = object as? NSImage {
                         Task { @MainActor in appendImage(img) }
                     }
-                }
-                continue
-            }
-            guard provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) else { continue }
-            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { data, _ in
-                let url: URL?
-                switch data {
-                case let u as URL: url = u
-                case let d as Data: url = (try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSURL.self, from: d)) as URL?
-                default: url = nil
-                }
-                if let url {
-                    Task { @MainActor in routeAttachment(url: url) }
                 }
             }
         }
@@ -665,18 +679,26 @@ struct ChatView: View {
         }
     }
 
-    /// 跑系统工具拿 stdout（失败/非零退出返回 nil；秒级命令不做超时）。
+    /// 跑系统工具拿 stdout（失败/非零退出返回 nil）。stderr 必须排空：子进程写满管道
+    /// 缓冲（损坏 zip 的 unzip 每条目一条 warning 极易超 64KB）会卡死 stdout 读取。
     private static func runSystemTool(_ path: String, _ arguments: [String]) -> String? {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: path)
         proc.arguments = arguments
         let pipe = Pipe()
         proc.standardOutput = pipe
-        proc.standardError = Pipe()
+        let errPipe = Pipe()
+        proc.standardError = errPipe
+        errPipe.fileHandleForReading.readabilityHandler = { _ in
+            // 排空即丢（unzip warning 不进结果）；handler 会自动持续回调直到 EOF
+            _ = errPipe.fileHandleForReading.availableData
+        }
+        defer { errPipe.fileHandleForReading.readabilityHandler = nil }
         do {
             try proc.run()
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             proc.waitUntilExit()
+            guard proc.terminationStatus == 0 else { return nil }
             return String(data: data, encoding: .utf8)
         } catch {
             return nil
@@ -695,11 +717,12 @@ struct ChatView: View {
         } ?? []
         let text = lines
             .map { $0
-                .replacingOccurrences(of: "&amp;", with: "&")
+                // &amp; 必须最后：先解会把 &amp;lt; 双重解码成 <
                 .replacingOccurrences(of: "&lt;", with: "<")
                 .replacingOccurrences(of: "&gt;", with: ">")
                 .replacingOccurrences(of: "&quot;", with: "\"")
                 .replacingOccurrences(of: "&apos;", with: "'")
+                .replacingOccurrences(of: "&amp;", with: "&")
             }
             .filter { !$0.isEmpty }
             .joined(separator: "\n")
