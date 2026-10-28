@@ -54,9 +54,46 @@ final class ConversationHistory: ObservableObject {
     }
 
     /// Messages to send to the LLM (most recent N messages).
+    /// 较早轮次里的内联文件载荷压缩为头部摘要：全文每轮重发撑爆 token，滑出窗口后她又会
+    /// "忘了"文件——压缩后文件名+头部细节常驻，可讨论的轮次大幅延长（2026-10-28 附件线收尾）。
     var contextMessages: [ChatMessage] {
         let startIndex = max(0, messages.count - maxContextMessages)
-        return Array(messages[startIndex...])
+        let window = Array(messages[startIndex...])
+        guard let lastUserIdx = window.lastIndex(where: { $0.role == .user }) else { return window }
+        return window.enumerated().map { (i, m) in
+            i == lastUserIdx ? m : Self.condenseFilePayloads(m)
+        }
+    }
+
+    /// 较早消息里的 [文件 …]…[文件结束] 载荷压到头部 600 字（多载荷逐个处理；无载荷原样）。
+    private static func condenseFilePayloads(_ m: ChatMessage) -> ChatMessage {
+        let endMark = "[文件结束 —— 关于这个文件：]"
+        guard m.content.contains("[文件 "), m.content.contains(endMark) else { return m }
+        var out = ""
+        var rest = Substring(m.content)
+        let keep = 600
+        while let start = rest.range(of: "[文件 ") {
+            out += rest[..<start.lowerBound]
+            let after = rest[start.lowerBound...]
+            guard let end = after.range(of: endMark) else {
+                out += after  // 残缺载荷（无结束标记）原样保留
+                rest = ""
+                break
+            }
+            let payload = after[..<end.lowerBound]
+            if let nl = payload.firstIndex(of: "\n") {
+                out += payload[...nl]  // 文件名行 + 换行
+                let body = payload[payload.index(after: nl)...]
+                out += body.prefix(keep)
+                if body.count > keep { out += "…（已压缩，完整内容在更早消息）" }
+            } else {
+                out += payload
+            }
+            out += "[文件结束]"
+            rest = after[end.upperBound...]
+        }
+        out += rest
+        return ChatMessage(role: m.role, content: String(out), timestamp: m.timestamp, isHidden: m.isHidden, thinking: m.thinking)
     }
 
     func removeLastMessage() {

@@ -64,7 +64,7 @@ targets:
         INFOPLIST_FILE: AniCompanion/Info.plist
         CODE_SIGN_ENTITLEMENTS: AniCompanion/AniCompanion.entitlements
         PRODUCT_NAME: AniCompanion
-        MARKETING_VERSION: "0.15.4"
+        MARKETING_VERSION: "0.15.5"
         CURRENT_PROJECT_VERSION: 24
         GENERATE_INFOPLIST_FILE: false
         SWIFT_STRICT_CONCURRENCY: complete
