@@ -578,39 +578,62 @@ struct ChatView: View {
 
     /// 附件路由核心（📎 与拖拽共用）：PDF→文字层内联/扫描页渲染；图片→pendingImages；
     /// 文本/Office→内联卡片；其他→路径卡片（网关失信兜底代读）。
+    /// 附件准备结果（后台线程产出，主线程消费）。
+    private struct AttachmentPrepared: @unchecked Sendable {
+        var images: [NSImage] = []
+        var card: PendingFile?
+    }
+
     private func routeAttachment(url: URL) {
         guard pendingFiles.count < 6 else { return }  // 上限防载荷/预览条双溢出（与图片 4 张同理）
+        let imageSlots = 4 - pendingImages.count
+        // 重活全部离主线程：大 PDF 解析/textutil/unzip/页面栅格化在 MainActor 上会 beachball
+        // （review H2）；static 纯计算无 UI 状态，完成后回 MainActor 统一 append。
+        Task.detached(priority: .userInitiated) {
+            let prepared = Self.prepareAttachment(url: url, imageSlots: imageSlots)
+            await MainActor.run {
+                prepared.images.forEach(appendImage)
+                if let card = prepared.card, pendingFiles.count < 6 {
+                    pendingFiles.append(card)
+                }
+            }
+        }
+    }
+
+    /// 附件路由核心（📎/拖拽共用，后台线程跑）：PDF→文字层内联/扫描页渲染；图片→解码；
+    /// 文本/Office→内联卡片；其他→路径卡片。PDF 必须在 NSImage 之前判定——macOS 的
+    /// NSImage(contentsOf:) 对 PDF 恒成功（单页低清栅格图吞掉文字层与多页，2026-10-28
+    /// 用户实测：产品 PDF 被当模糊图、模型叠加历史话题答成了"简历"）。
+    nonisolated private static func prepareAttachment(url: URL, imageSlots: Int) -> AttachmentPrepared {
         let name = url.lastPathComponent
-        // PDF 必须在 NSImage 判定之前：macOS 的 NSImage(contentsOf:) 对 PDF 恒成功
-        // （产出单页低清栅格图，吞掉文字层与多页）——2026-10-28 用户实测：产品 PDF 被
-        // 当成一张模糊图发给视觉模型，叠加历史话题后答成了"简历"。
         if url.pathExtension.lowercased() == "pdf" {
-            if let text = Self.extractText(from: url), !text.isEmpty {
-                let clipped = text.count > 20_000 ? String(text.prefix(20_000)) + "\n…（已截断）" : text
-                pendingFiles.append(PendingFile(name: name, icon: "doc.text", payload: "[文件 \(name)]\n\(clipped)\n[文件结束 —— 关于这个文件：]"))
-                return
+            if let text = extractText(from: url), !text.isEmpty {
+                return AttachmentPrepared(card: inlineCard(name: name, text: text))
             }
-            // 扫描版（无文字层）：渲染前 N 页走视觉通道
-            let pages = Self.renderPdfPages(url, limit: 4 - pendingImages.count)
+            let pages = renderPdfPages(url, limit: imageSlots)  // 扫描版：渲染页走视觉通道
             if !pages.isEmpty {
-                pages.forEach(appendImage)
-                return
+                return AttachmentPrepared(images: pages)
             }
-            pendingFiles.append(PendingFile(name: name, icon: "doc.badge.ellipsis", payload: url.path))
-            return
+            return AttachmentPrepared(card: pathCard(name: name, url: url))
         }
         if let img = NSImage(contentsOf: url) {
-            appendImage(img)
-            return
+            return AttachmentPrepared(images: [img])
         }
-        // 文本类/Office 内联抽取：她直接读到内容，快
-        if let text = Self.extractText(from: url) ?? Self.extractOfficeText(from: url), !text.isEmpty {
-            let clipped = text.count > 20_000 ? String(text.prefix(20_000)) + "\n…（已截断）" : text
-            pendingFiles.append(PendingFile(name: name, icon: "doc.text", payload: "[文件 \(name)]\n\(clipped)\n[文件结束 —— 关于这个文件：]"))
-            return
+        if let text = extractText(from: url) ?? extractOfficeText(from: url), !text.isEmpty {
+            return AttachmentPrepared(card: inlineCard(name: name, text: text))
         }
-        // 其他（二进制/超大）：附路径，网关失信兜底会自动派 Read 代读
-        pendingFiles.append(PendingFile(name: name, icon: "doc.badge.ellipsis", payload: url.path))
+        return AttachmentPrepared(card: pathCard(name: name, url: url))
+    }
+
+    /// 内联卡片（20k 截断）。
+    nonisolated private static func inlineCard(name: String, text: String) -> PendingFile {
+        let clipped = text.count > 20_000 ? String(text.prefix(20_000)) + "\n…（已截断）" : text
+        return PendingFile(name: name, icon: "doc.text", payload: "[文件 \(name)]\n\(clipped)\n[文件结束 —— 关于这个文件：]")
+    }
+
+    /// 路径卡片（二进制；网关失信兜底会代读）。
+    nonisolated private static func pathCard(name: String, url: URL) -> PendingFile {
+        PendingFile(name: name, icon: "doc.badge.ellipsis", payload: url.path)
     }
 
     /// 拖拽附件：fileURL 优先走与 📎 相同的路由（PDF 若先查 NSImage 会被吃成单页栅格图，
@@ -643,12 +666,12 @@ struct ChatView: View {
     }
 
     /// PDF 页数（0=打不开/损坏）。 */
-    private static func pdfPageCount(_ url: URL) -> Int {
+    nonisolated private static func pdfPageCount(_ url: URL) -> Int {
         PDFDocument(url: url)?.pageCount ?? 0
     }
 
     /// 把 PDF 前N页渲染成 NSImage（扫描版走视觉通道用；渲染失败返回空）。
-    private static func renderPdfPages(_ url: URL, limit: Int) -> [NSImage] {
+    nonisolated private static func renderPdfPages(_ url: URL, limit: Int) -> [NSImage] {
         guard limit > 0, let doc = PDFDocument(url: url) else { return [] }
         var images: [NSImage] = []
         for i in 0..<min(limit, doc.pageCount) {
@@ -664,14 +687,26 @@ struct ChatView: View {
     /// Office 文档（docx/pptx/xlsx）文本抽取——系统工具链，零三方依赖（2026-10-27 实验验证）：
     /// docx → textutil；pptx → slides XML 的 <a:t>；xlsx → sharedStrings 的 <t>。
     /// Process 跑固定二进制+固定参数（不经 shell，路径来自 NSOpenPanel，无注入面）。
-    private static func extractOfficeText(from url: URL) -> String? {
+    nonisolated private static func extractOfficeText(from url: URL) -> String? {
         switch url.pathExtension.lowercased() {
         case "docx":
             let out = runSystemTool("/usr/bin/textutil", ["-convert", "txt", "-stdout", url.path]) ?? ""
             return out.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : out
         case "pptx":
-            let xml = runSystemTool("/usr/bin/unzip", ["-p", url.path, "ppt/slides/slide*.xml"]) ?? ""
-            return xmlText(xml, tag: "a:t")
+            // slide 顺序：-p 按包内条目序输出（slide10 会排在 slide2 前——实测 review L2），
+            // 先 -Z1 列条目、按页号数字排序，再逐页抽取（每页一次 spawn，后台线程无感）
+            let entries = (runSystemTool("/usr/bin/unzip", ["-Z1", url.path, "ppt/slides/slide*.xml"]) ?? "")
+                .split(separator: "\n")
+                .map(String.init)
+                .sorted { slideNo($0) == slideNo($1) ? $0 < $1 : slideNo($0) < slideNo($1) }
+            var parts: [String] = []
+            for entry in entries where !entry.isEmpty {
+                if let t = xmlText(runSystemTool("/usr/bin/unzip", ["-p", url.path, entry]) ?? "", tag: "a:t") {
+                    parts.append(t)
+                }
+            }
+            let text = parts.joined(separator: "\n")
+            return text.isEmpty ? nil : text
         case "xlsx":
             let xml = runSystemTool("/usr/bin/unzip", ["-p", url.path, "xl/sharedStrings.xml"]) ?? ""
             return xmlText(xml, tag: "t")
@@ -680,9 +715,15 @@ struct ChatView: View {
         }
     }
 
+    /// 从条目路径（ppt/slides/slide12.xml）抽页号（12；抽不到返回 Int.max 排最后）。
+    nonisolated private static func slideNo(_ entry: String) -> Int {
+        guard let m = entry.range(of: #"slide(\d+)\.xml"#, options: .regularExpression) else { return Int.max }
+        return Int(entry[m].dropFirst("slide".count).dropLast(".xml".count)) ?? Int.max
+    }
+
     /// 跑系统工具拿 stdout（失败/非零退出返回 nil）。stderr 必须排空：子进程写满管道
     /// 缓冲（损坏 zip 的 unzip 每条目一条 warning 极易超 64KB）会卡死 stdout 读取。
-    private static func runSystemTool(_ path: String, _ arguments: [String]) -> String? {
+    nonisolated private static func runSystemTool(_ path: String, _ arguments: [String]) -> String? {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: path)
         proc.arguments = arguments
@@ -707,7 +748,7 @@ struct ChatView: View {
     }
 
     /// 从 OOXML 流里抽出指定标签的文本，实体还原，按行拼接（空=返回 nil）。
-    private static func xmlText(_ xml: String, tag: String) -> String? {
+    nonisolated private static func xmlText(_ xml: String, tag: String) -> String? {
         let pattern = "<\(tag)[^>]*>([^<]*)</\(tag)>"
         let regex = try? NSRegularExpression(pattern: pattern)
         let ns = xml as NSString
@@ -731,7 +772,7 @@ struct ChatView: View {
     }
 
     /// Text extraction: plain-text extensions read directly; PDF via PDFKit. Nil = not readable.
-    private static func extractText(from url: URL) -> String? {
+    nonisolated private static func extractText(from url: URL) -> String? {
         let ext = url.pathExtension.lowercased()
         let textExtensions: Set<String> = ["txt", "md", "json", "csv", "log", "swift", "ts", "js", "py", "sh", "yaml", "yml", "html", "css", "xml"]
         if ext == "pdf" {
