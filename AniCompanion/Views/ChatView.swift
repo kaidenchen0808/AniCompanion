@@ -575,6 +575,7 @@ struct ChatView: View {
         routeAttachment(url: url)
     }
 
+
     /// 附件路由核心（📎 与拖拽共用）：PDF→文字层内联/扫描页渲染；图片→pendingImages；
     /// 文本/Office→内联卡片；其他→路径卡片（网关失信兜底代读）。
     private func routeAttachment(url: URL) {
@@ -853,6 +854,51 @@ private struct DaySeparator: View {
 /// are left-aligned with a dark gray background.
 private struct MessageBubbleView: View {
 
+    /// 消息渲染分段：普通文字 / 文件附件（user 气泡把内联载荷显示为胶囊而非裸铺原文）。
+    struct MessagePart: Identifiable {
+        let id = UUID()
+        var isFile = false
+        var name = ""
+        var chars = 0
+        var preview = ""
+        var text = ""
+    }
+
+    /// 把消息内容按 [文件 …]…[文件结束…] 载荷拆段（兼容完整与压缩后的结束标记）。
+    private static func splitFilePayloads(_ content: String) -> [MessagePart] {
+        guard content.contains("[文件 ") else { return [MessagePart(text: content)] }
+        var parts: [MessagePart] = []
+        var rest = Substring(content)
+        while let start = rest.range(of: "[文件 ") {
+            if !rest[..<start.lowerBound].isEmpty {
+                parts.append(MessagePart(text: String(rest[..<start.lowerBound])))
+            }
+            let after = rest[start.lowerBound...]
+            guard let endMark = after.range(of: "[文件结束") else {
+                parts.append(filePart(from: after))  // 残缺载荷：整体当一个文件段
+                rest = ""
+                break
+            }
+            parts.append(filePart(from: after[..<endMark.lowerBound]))
+            if let eol = after.range(of: "\n", range: endMark.lowerBound..<after.endIndex) {
+                rest = after[eol.upperBound...]
+            } else {
+                rest = ""
+            }
+        }
+        if !rest.isEmpty { parts.append(MessagePart(text: String(rest))) }
+        return parts
+    }
+
+    /// "[文件 名]\n正文" → 附件段（名 + 字数 + 前 400 字预览供 tooltip）。
+    private static func filePart(from payload: Substring) -> MessagePart {
+        let lines = payload.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
+        let head = String(lines.first ?? "")
+        let name = head.hasPrefix("[文件 ") && head.hasSuffix("]") ? String(head.dropFirst(4).dropLast()) : head
+        let body = lines.count > 1 ? String(lines[1]) : ""
+        return MessagePart(isFile: true, name: name.isEmpty ? "文件" : name, chars: body.count, preview: String(body.prefix(400)))
+    }
+
     let message: ChatMessage
     /// Regeneration is offered only on the very last assistant message.
     var isLastAssistant: Bool = false
@@ -883,16 +929,36 @@ private struct MessageBubbleView: View {
                 }
 
                 if isUser {
-                    Text(message.displayContent)
-                        .font(.system(size: 14))
-                        .foregroundStyle(.white)
-                        .textSelection(.enabled)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(Color.blue.opacity(0.6))
-                        )
+                    // 内联文件载荷不裸铺原文（2423 字 PDF 直显非常乱）——渲染成附件胶囊
+                    let parts = Self.splitFilePayloads(message.displayContent)
+                    VStack(alignment: .trailing, spacing: 4) {
+                        ForEach(parts) { part in
+                            if part.isFile {
+                                HStack(spacing: 5) {
+                                    Image(systemName: "doc.fill")
+                                        .font(.system(size: 10))
+                                    Text("\(part.name) · \(part.chars) 字")
+                                        .font(.system(size: 12))
+                                        .lineLimit(1)
+                                }
+                                .foregroundStyle(.white.opacity(0.9))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(Capsule().fill(.white.opacity(0.18)))
+                                .help(part.preview)
+                            } else if !part.text.isEmpty {
+                                Text(part.text)
+                                    .font(.system(size: 14))
+                                    .textSelection(.enabled)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color.blue.opacity(0.6))
+                    )
                 } else {
                     // 千问范式:AI 回复不用气泡 —— 全宽文档流直渲;代码块/表格/公式等
                     // 富媒体元素自带深色圆角卡,形成"文档嵌卡片"层次。
